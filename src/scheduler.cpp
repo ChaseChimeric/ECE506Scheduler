@@ -1,4 +1,6 @@
+
 #include "schedrt/scheduler.hpp"
+#include "dash/completion_bus.hpp"
 #include <iostream>
 #include <set>
 
@@ -165,6 +167,7 @@ private:
         std::lock_guard<std::mutex> lk(io_);
         std::cout << "[RESULT] Task " << r.id << " ok=" << (r.ok ? "true" : "false")
                   << " msg=\"" << r.message << "\" time_ms=" << r.runtime_ms.count() << "\n";
+        dash::fulfill(r.id, r.ok);
     }
 
 private:

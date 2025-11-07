@@ -50,6 +50,12 @@ std::unique_ptr<Accelerator> make_cpu_mock(unsigned id) {
 std::unique_ptr<Accelerator> make_fpga_slot(unsigned slot) {
     return std::make_unique<FpgaAccelerator>(slot);
 }
+std::unique_ptr<Accelerator> make_zip_overlay(unsigned id) { 
+    return make_cpu_mock(id); 
+}
+std::unique_ptr<Accelerator> make_fft_overlay(unsigned id) { 
+    return make_cpu_mock(id+10); 
+}
 
 } // namespace schedrt
 

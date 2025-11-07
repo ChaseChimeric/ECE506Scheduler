@@ -24,5 +24,7 @@ public:
 std::unique_ptr<Accelerator> make_cpu_mock(unsigned id = 0);
 std::unique_ptr<Accelerator> make_fpga_slot(unsigned slot = 0);
 
+std::unique_ptr<Accelerator> make_zip_overlay(unsigned id);
+std::unique_ptr<Accelerator> make_fft_overlay(unsigned id);
 } // namespace schedrt
 

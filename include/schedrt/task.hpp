@@ -9,6 +9,8 @@
 
 namespace schedrt {
 
+enum class ResourceKind { CPU, ZIP, FFT };
+
 struct Task {
     using TaskId = uint64_t;
 
@@ -20,7 +22,7 @@ struct Task {
     std::vector<TaskId> depends_on{};
     std::unordered_map<std::string, std::string> params{};
     std::chrono::milliseconds est_runtime_ms{0};
-
+    ResourceKind required{ResourceKind::CPU};
     std::atomic<bool> ready{false};
 };
 

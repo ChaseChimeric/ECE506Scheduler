@@ -1,0 +1,2 @@
+/usr/sbin/ar qc libschedrt.a CMakeFiles/schedrt.dir/src/scheduler.cpp.o CMakeFiles/schedrt.dir/src/accelerators.cpp.o CMakeFiles/schedrt.dir/src/dash/provider.cpp.o CMakeFiles/schedrt.dir/src/dash/completion_bus.cpp.o CMakeFiles/schedrt.dir/src/dash/fft.cpp.o CMakeFiles/schedrt.dir/src/dash/zip.cpp.o
+/usr/sbin/ranlib libschedrt.a
