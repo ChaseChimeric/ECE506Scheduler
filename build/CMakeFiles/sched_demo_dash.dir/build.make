@@ -97,6 +97,7 @@ sched_demo_dash: CMakeFiles/sched_demo_dash.dir/apps/demo_dash.cpp.o
 sched_demo_dash: CMakeFiles/sched_demo_dash.dir/build.make
 sched_demo_dash: CMakeFiles/sched_demo_dash.dir/compiler_depend.ts
 sched_demo_dash: libschedrt.a
+sched_demo_dash: /usr/lib/libz.so
 sched_demo_dash: CMakeFiles/sched_demo_dash.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable sched_demo_dash"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/sched_demo_dash.dir/link.txt --verbose=$(VERBOSE)

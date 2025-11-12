@@ -1,69 +1,133 @@
-#include "schedrt/scheduler.hpp"
-#include "schedrt/application_registry.hpp"
-#include "schedrt/accelerator.hpp"
-#include "dash/provider.hpp"
+#include "apps/app_interface.hpp"
 #include "dash/fft.hpp"
+#include "dash/provider.hpp"
 #include "dash/zip.hpp"
+#include "schedrt/accelerator.hpp"
+#include "schedrt/application_registry.hpp"
+#include "schedrt/scheduler.hpp"
+
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <thread>
+#include <unordered_set>
+#include <vector>
 
-// trivial global for demo; wire with DI in real code
-schedrt::Scheduler* g_sched = nullptr;
+namespace {
+
+struct OverlaySpec {
+    std::string app;
+    unsigned count = 1;
+};
+
+struct DashOptions {
+    std::vector<OverlaySpec> overlays;
+    unsigned cpu_workers = 4;
+    unsigned preload_threshold = 3;
+    std::string fpga_manager_path = "/sys/class/fpga_manager/fpga0/firmware";
+    bool fpga_mock = true;
+};
+
+unsigned parse_unsigned(const std::string& text, unsigned fallback) {
+    if (text.empty()) return fallback;
+    unsigned value = 0;
+    for (char c : text) {
+        if (c < '0' || c > '9') return fallback;
+        value = value * 10 + static_cast<unsigned>(c - '0');
+    }
+    return value > 0 ? value : fallback;
+}
+
+DashOptions parse_options(int argc, char** argv) {
+    DashOptions opts;
+    for (int i = 0; i < argc; ++i) {
+        std::string arg(argv[i]);
+        if (arg == "--fpga-real") {
+            opts.fpga_mock = false;
+            continue;
+        }
+        if (arg == "--fpga-mock") {
+            opts.fpga_mock = true;
+            continue;
+        }
+        if (arg.rfind("--fpga-manager=", 0) == 0) {
+            opts.fpga_manager_path = arg.substr(sizeof("--fpga-manager=") - 1);
+            continue;
+        }
+        if (arg.rfind("--overlay=", 0) == 0) {
+            std::string spec = arg.substr(sizeof("--overlay=") - 1);
+            auto colon = spec.find(':');
+            OverlaySpec overlay;
+            overlay.app = colon == std::string::npos ? spec : spec.substr(0, colon);
+            if (colon != std::string::npos && colon + 1 < spec.size()) {
+                overlay.count = parse_unsigned(spec.substr(colon + 1), overlay.count);
+            }
+            if (!overlay.app.empty()) opts.overlays.push_back(overlay);
+            continue;
+        }
+        if (arg.rfind("--cpu-workers=", 0) == 0) {
+            opts.cpu_workers = parse_unsigned(arg.substr(sizeof("--cpu-workers=") - 1), opts.cpu_workers);
+            continue;
+        }
+        if (arg.rfind("--preload-threshold=", 0) == 0) {
+            opts.preload_threshold =
+                parse_unsigned(arg.substr(sizeof("--preload-threshold=") - 1), opts.preload_threshold);
+            continue;
+        }
+    }
+    if (opts.overlays.empty()) {
+        opts.overlays.push_back({"zip", 2});
+        opts.overlays.push_back({"fft", 1});
+    }
+    return opts;
+}
+
+DashOptions g_opts;
+
+} // namespace
 
 using namespace schedrt;
 
-int main() {
-    // 1) App registry: map ops to kinds in preference order (HW then CPU)
-    ApplicationRegistry reg;
-   {
-    schedrt::AppDescriptor a{};
-    a.app = "zip";
-    a.bitstream_path = "";
-    a.kernel_name = "zip_kernel";
-    reg.register_app(a);
-}
-{
-    schedrt::AppDescriptor a{};
-    a.app = "fft";
-    a.bitstream_path = "";
-    a.kernel_name = "fft_kernel";
-    reg.register_app(a);
-}
- 
-    
+extern "C" void app_initialize(int argc, char** argv, ApplicationRegistry& reg, Scheduler& sched) {
+    g_opts = parse_options(argc, argv);
+    reg.register_app({"zip", "", "zip_kernel"});
+    reg.register_app({"fft", "", "fft_kernel"});
 
-    // 2) Build scheduler as before
-    static Scheduler sched(reg, BackendMode::AUTO, /*cpu_workers_hint*/4);
-    g_sched = &sched;
+    unsigned next_slot_id = 0;
+    unsigned provider_instance = 0;
+    std::unordered_set<std::string> cpu_registered;
 
-    // 3) Device inventory: up to 2 of each hardware overlay + CPU fallbacks
-    //    (your accelerators.cpp already defines these factories)
-    sched.add_accelerator(make_zip_overlay(0));
-    sched.add_accelerator(make_zip_overlay(1));
-    sched.add_accelerator(make_fft_overlay(0));
-    sched.add_accelerator(make_fft_overlay(1));
-    // CPU fallbacks that implement ZIP/FFT in software:
-    // (we discussed adding these; if you haven't added them yet, you can skip and rely on CPU-only.)
-    // sched.add_accelerator(make_zip_cpu(0));
-    // sched.add_accelerator(make_fft_cpu(0));
+    for (const auto& overlay : g_opts.overlays) {
+        auto descOpt = reg.lookup(overlay.app);
+        if (!descOpt) {
+            std::cerr << "Warning: unknown overlay '" << overlay.app << "'; skipping\n";
+            continue;
+        }
+        if (overlay.count > 0) {
+            for (unsigned i = 0; i < overlay.count; ++i) {
+                FpgaSlotOptions slot_opts{g_opts.fpga_manager_path, g_opts.fpga_mock};
+                sched.add_accelerator(make_fpga_slot(next_slot_id++, slot_opts));
+                dash::register_provider({overlay.app, descOpt->kind, provider_instance++, 0});
+            }
+        }
+        if (cpu_registered.insert(overlay.app).second) {
+            dash::register_provider({overlay.app, ResourceKind::CPU, provider_instance++, 10});
+        }
+    }
+    for (const auto* op : {"zip", "fft"}) {
+        if (cpu_registered.insert(op).second) {
+            dash::register_provider({op, ResourceKind::CPU, provider_instance++, 10});
+        }
+    }
 
-    // Plain CPU-only for generic CPU tasks (optional)
     sched.add_accelerator(make_cpu_mock(0));
+}
 
-    // 4) Register providers (DASH-style discovery), with preference: HW first, CPU last
-    dash::register_provider({"zip", ResourceKind::ZIP, 0, 0});
-    dash::register_provider({"zip", ResourceKind::ZIP, 1, 0});
-    dash::register_provider({"zip", ResourceKind::CPU, 0, 10}); // fallback
+extern "C" int app_run(int argc, char** argv, Scheduler& sched) {
+    (void)argc;
+    (void)argv;
 
-    dash::register_provider({"fft", ResourceKind::FFT, 0, 0});
-    dash::register_provider({"fft", ResourceKind::FFT, 1, 0});
-    dash::register_provider({"fft", ResourceKind::CPU, 0, 10}); // fallback
-
-    sched.start();
-
-    // 5) Use the DASH API (no device details mentioned here)
     {
         dash::ZipParams zp{3, dash::ZipMode::Compress};
         char inbuf[1024], outbuf[2048];
@@ -79,7 +143,5 @@ int main() {
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    sched.stop();
     return 0;
 }
-

@@ -277,6 +277,7 @@ sched_demo: /usr/lib/Scrt1.o \
   /usr/lib/libc_nonshared.a \
   /usr/lib/libm.so.6 \
   /usr/lib/libmvec.so.1 \
+  /usr/lib/libz.so \
   CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o \
   libschedrt.a
 
@@ -284,6 +285,8 @@ sched_demo: /usr/lib/Scrt1.o \
 libschedrt.a:
 
 CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o:
+
+/usr/lib/libz.so:
 
 /usr/lib/libmvec.so.1:
 

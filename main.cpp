@@ -41,7 +41,7 @@ struct Task {
     std::unordered_map<std::string, std::string> params;
 
     // Optional estimates to help scheduling decisions:
-    std::chrono::milliseconds est_runtime_ms{0};
+    std::chrono::nanoseconds est_runtime_ns{0};
 
     // Bookkeeping:
     std::atomic<bool> ready{false};
@@ -127,7 +127,7 @@ struct ExecutionResult {
     Task::TaskId id;
     bool ok;
     std::string message;
-    std::chrono::milliseconds runtime_ms{0};
+    std::chrono::nanoseconds runtime_ns{0};
 };
 
 class Accelerator {
@@ -143,7 +143,7 @@ public:
     virtual ExecutionResult run(const Task& task, const AppDescriptor& app) = 0;
 };
 
-// Mock CPU backend: simulates runtime by sleeping est_runtime_ms (or a fallback)
+// Mock CPU backend: simulates runtime by sleeping est_runtime_ns (or a fallback)
 class CpuMockAccelerator : public Accelerator {
 public:
     explicit CpuMockAccelerator(unsigned id = 0) : id_(id) {}
@@ -153,15 +153,15 @@ public:
 
     ExecutionResult run(const Task& task, const AppDescriptor& app) override {
         auto t0 = std::chrono::steady_clock::now();
-        auto dur = task.est_runtime_ms.count() > 0 ? task.est_runtime_ms
-                                                   : std::chrono::milliseconds(10);
+        auto dur = task.est_runtime_ns.count() > 0 ? task.est_runtime_ns
+                                                   : std::chrono::nanoseconds(10000000);
         std::this_thread::sleep_for(dur);
         auto t1 = std::chrono::steady_clock::now();
         return {
             task.id,
             true,
             "Executed " + app.app + " on mock CPU",
-            std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0)
+            std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0)
         };
     }
 private:
@@ -362,29 +362,29 @@ private:
                             cpu = &a; break;
                         }
                     }
-                    if (cpu) {
-                        auto r = (*cpu)->run(*task, app);
-                        report_result(r);
-                        deps_.mark_complete(task->id);
-                        continue;
-                    }
-                }
-                report_result({task->id, false, "Failed to load app on accelerator", std::chrono::milliseconds(0)});
+            if (cpu) {
+                auto r = (*cpu)->run(*task, app);
+                report_result(r);
+                deps_.mark_complete(task->id);
                 continue;
             }
+        }
+        report_result({task->id, false, "Failed to load app on accelerator", std::chrono::nanoseconds(0)});
+        continue;
+    }
 
             // Execute
             auto r = (*chosen)->run(*task, app);
-            report_result(r);
-            if (r.ok) deps_.mark_complete(task->id);
+                report_result(r);
+                if (r.ok) deps_.mark_complete(task->id);
+            }
         }
-    }
 
     void report_result(const ExecutionResult& r) {
         // Hook your metrics/logging bus here
         std::lock_guard<std::mutex> lk(io_mu_);
         std::cout << "[RESULT] Task " << r.id << " ok=" << (r.ok ? "true" : "false")
-                  << " msg=\"" << r.message << "\" time_ms=" << r.runtime_ms.count() << "\n";
+                  << " msg=\"" << r.message << "\" time_ns=" << r.runtime_ns.count() << "\n";
     }
 
 private:
@@ -451,16 +451,16 @@ int main(int argc, char** argv) {
     auto t1 = std::make_shared<Task>();
     t1->id = 1; t1->app = "sobel"; t1->priority = 5;
     t1->release_time = now;
-    t1->est_runtime_ms = std::chrono::milliseconds(120);
+    t1->est_runtime_ns = std::chrono::nanoseconds(120000000);
 
     auto t2 = std::make_shared<Task>();
     t2->id = 2; t2->app = "gemm"; t2->priority = 3;
     t2->depends_on = {1};
-    t2->est_runtime_ms = std::chrono::milliseconds(250);
+    t2->est_runtime_ns = std::chrono::nanoseconds(250000000);
 
     auto t3 = std::make_shared<Task>();
     t3->id = 3; t3->app = "sobel"; t3->priority = 4;
-    t3->est_runtime_ms = std::chrono::milliseconds(80);
+    t3->est_runtime_ns = std::chrono::nanoseconds(80000000);
 
     sched.submit(t1);
     sched.submit(t2);

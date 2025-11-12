@@ -161,10 +161,10 @@ CMakeFiles/schedrt.dir/src/scheduler.cpp.o: \
  /usr/include/c++/15.2.1/backward/auto_ptr.h \
  /usr/include/c++/15.2.1/pstl/glue_memory_defs.h \
  /usr/include/c++/15.2.1/pstl/execution_defs.h \
- /home/chasechimeric/Documents/Code/ECE506\ Scheduler/include/schedrt/application_registry.hpp \
  /usr/include/c++/15.2.1/mutex /usr/include/c++/15.2.1/bits/std_mutex.h \
  /usr/include/c++/15.2.1/bits/unique_lock.h \
  /usr/include/c++/15.2.1/x86_64-pc-linux-gnu/bits/error_constants.h \
+ /home/chasechimeric/Documents/Code/ECE506\ Scheduler/include/schedrt/application_registry.hpp \
  /usr/include/c++/15.2.1/condition_variable /usr/include/c++/15.2.1/queue \
  /usr/include/c++/15.2.1/deque /usr/include/c++/15.2.1/bits/stl_deque.h \
  /usr/include/c++/15.2.1/bits/deque.tcc \
@@ -177,6 +177,11 @@ CMakeFiles/schedrt.dir/src/scheduler.cpp.o: \
  /usr/include/c++/15.2.1/stdexcept \
  /usr/include/c++/15.2.1/bits/atomic_futex.h \
  /usr/include/c++/15.2.1/bits/std_function.h \
+ /usr/include/c++/15.2.1/algorithm \
+ /usr/include/c++/15.2.1/bits/stl_algo.h \
+ /usr/include/c++/15.2.1/bits/algorithmfwd.h \
+ /usr/include/c++/15.2.1/bits/uniform_int_dist.h \
+ /usr/include/c++/15.2.1/pstl/glue_algorithm_defs.h \
  /usr/include/c++/15.2.1/iostream /usr/include/c++/15.2.1/ostream \
  /usr/include/c++/15.2.1/bits/ostream.h /usr/include/c++/15.2.1/ios \
  /usr/include/c++/15.2.1/bits/ios_base.h \

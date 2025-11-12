@@ -11,7 +11,7 @@ option(BUILD_DEMO "Build simple demo (demo_main)" ON)
 option(BUILD_DEMO_DASH "Build DASH-style demo (demo_dash)" ON)
 
 # Library
-add_library(schedrt
+add_library(schedrt SHARED
     src/scheduler.cpp
     src/accelerators.cpp
 
@@ -20,7 +20,10 @@ add_library(schedrt
     src/dash/completion_bus.cpp
     src/dash/fft.cpp
     src/dash/zip.cpp
+    src/dash/scheduler_binding.cpp
 )
+
+set_target_properties(schedrt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Public includes for consumers (your apps)
 target_include_directories(schedrt
@@ -37,16 +40,18 @@ endif()
 
 # Threads
 find_package(Threads REQUIRED)
-target_link_libraries(schedrt PUBLIC Threads::Threads)
+find_package(ZLIB REQUIRED)
+target_link_libraries(schedrt PUBLIC Threads::Threads ZLIB::ZLIB)
 
 # Demos
-if (BUILD_DEMO)
-    add_executable(sched_demo apps/demo_main.cpp)
-    target_link_libraries(sched_demo PRIVATE schedrt)
-endif()
+add_executable(sched_runner apps/sched_runner.cpp)
+target_include_directories(sched_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(sched_runner PRIVATE schedrt dl)
 
-if (BUILD_DEMO_DASH)
-    add_executable(sched_demo_dash apps/demo_dash.cpp)
-    target_link_libraries(sched_demo_dash PRIVATE schedrt)
-endif()
+add_library(demo_dash_app SHARED apps/demo_dash.cpp)
+target_include_directories(demo_dash_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(demo_dash_app PRIVATE schedrt)
 
+add_library(radar_correlator_app SHARED apps/radar_correlator.cpp)
+target_include_directories(radar_correlator_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(radar_correlator_app PRIVATE schedrt)

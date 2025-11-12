@@ -24,7 +24,8 @@ struct TaskCompare {
 
 class Scheduler {
 public:
-    Scheduler(ApplicationRegistry& reg, BackendMode mode, unsigned cpu_workers = 0);
+    Scheduler(ApplicationRegistry& reg, BackendMode mode, unsigned cpu_workers = 0,
+              unsigned overlay_preload_threshold = 2);
     ~Scheduler();
 
     void add_accelerator(std::unique_ptr<Accelerator> acc);
@@ -39,4 +40,3 @@ private:
 };
 
 } // namespace schedrt
-

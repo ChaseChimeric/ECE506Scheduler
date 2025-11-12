@@ -39,15 +39,15 @@ int main(int argc, char** argv) {
 
     auto t1 = std::make_shared<Task>();
     t1->id = 1; t1->app = "sobel"; t1->priority = 5; t1->release_time = now;
-    t1->est_runtime_ms = std::chrono::milliseconds(120);
+    t1->est_runtime_ns = std::chrono::nanoseconds(120000000);
 
     auto t2 = std::make_shared<Task>();
     t2->id = 2; t2->app = "gemm"; t2->priority = 3; t2->depends_on = {1};
-    t2->est_runtime_ms = std::chrono::milliseconds(250);
+    t2->est_runtime_ns = std::chrono::nanoseconds(250000000);
 
     auto t3 = std::make_shared<Task>();
     t3->id = 3; t3->app = "sobel"; t3->priority = 4;
-    t3->est_runtime_ms = std::chrono::milliseconds(80);
+    t3->est_runtime_ns = std::chrono::nanoseconds(80000000);
 
     sched.submit(t1);
     sched.submit(t2);
@@ -57,4 +57,3 @@ int main(int argc, char** argv) {
     sched.stop();
     return 0;
 }
-

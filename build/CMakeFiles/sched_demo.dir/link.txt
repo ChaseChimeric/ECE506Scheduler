@@ -1,1 +1,1 @@
-/usr/sbin/c++ -Wl,--dependency-file=CMakeFiles/sched_demo.dir/link.d CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o -o sched_demo  libschedrt.a
+/usr/sbin/c++ -Wl,--dependency-file=CMakeFiles/sched_demo.dir/link.d CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o -o sched_demo  libschedrt.a /usr/lib/libz.so

@@ -130,37 +130,50 @@ schedrt/fast:
 .PHONY : schedrt/fast
 
 #=============================================================================
-# Target rules for targets named sched_demo
+# Target rules for targets named sched_runner
 
 # Build rule for target.
-sched_demo: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 sched_demo
-.PHONY : sched_demo
+sched_runner: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 sched_runner
+.PHONY : sched_runner
 
 # fast build rule for target.
-sched_demo/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/build
-.PHONY : sched_demo/fast
+sched_runner/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/build
+.PHONY : sched_runner/fast
 
 #=============================================================================
-# Target rules for targets named sched_demo_dash
+# Target rules for targets named demo_dash_app
 
 # Build rule for target.
-sched_demo_dash: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 sched_demo_dash
-.PHONY : sched_demo_dash
+demo_dash_app: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 demo_dash_app
+.PHONY : demo_dash_app
 
 # fast build rule for target.
-sched_demo_dash/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/build
-.PHONY : sched_demo_dash/fast
+demo_dash_app/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/build
+.PHONY : demo_dash_app/fast
+
+#=============================================================================
+# Target rules for targets named radar_correlator_app
+
+# Build rule for target.
+radar_correlator_app: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 radar_correlator_app
+.PHONY : radar_correlator_app
+
+# fast build rule for target.
+radar_correlator_app/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/build
+.PHONY : radar_correlator_app/fast
 
 apps/demo_dash.o: apps/demo_dash.cpp.o
 .PHONY : apps/demo_dash.o
 
 # target to build an object file
 apps/demo_dash.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/apps/demo_dash.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/apps/demo_dash.cpp.o
 .PHONY : apps/demo_dash.cpp.o
 
 apps/demo_dash.i: apps/demo_dash.cpp.i
@@ -168,7 +181,7 @@ apps/demo_dash.i: apps/demo_dash.cpp.i
 
 # target to preprocess a source file
 apps/demo_dash.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/apps/demo_dash.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/apps/demo_dash.cpp.i
 .PHONY : apps/demo_dash.cpp.i
 
 apps/demo_dash.s: apps/demo_dash.cpp.s
@@ -176,32 +189,56 @@ apps/demo_dash.s: apps/demo_dash.cpp.s
 
 # target to generate assembly for a file
 apps/demo_dash.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/apps/demo_dash.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/apps/demo_dash.cpp.s
 .PHONY : apps/demo_dash.cpp.s
 
-apps/demo_main.o: apps/demo_main.cpp.o
-.PHONY : apps/demo_main.o
+apps/radar_correlator.o: apps/radar_correlator.cpp.o
+.PHONY : apps/radar_correlator.o
 
 # target to build an object file
-apps/demo_main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o
-.PHONY : apps/demo_main.cpp.o
+apps/radar_correlator.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/apps/radar_correlator.cpp.o
+.PHONY : apps/radar_correlator.cpp.o
 
-apps/demo_main.i: apps/demo_main.cpp.i
-.PHONY : apps/demo_main.i
+apps/radar_correlator.i: apps/radar_correlator.cpp.i
+.PHONY : apps/radar_correlator.i
 
 # target to preprocess a source file
-apps/demo_main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/apps/demo_main.cpp.i
-.PHONY : apps/demo_main.cpp.i
+apps/radar_correlator.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/apps/radar_correlator.cpp.i
+.PHONY : apps/radar_correlator.cpp.i
 
-apps/demo_main.s: apps/demo_main.cpp.s
-.PHONY : apps/demo_main.s
+apps/radar_correlator.s: apps/radar_correlator.cpp.s
+.PHONY : apps/radar_correlator.s
 
 # target to generate assembly for a file
-apps/demo_main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/apps/demo_main.cpp.s
-.PHONY : apps/demo_main.cpp.s
+apps/radar_correlator.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/apps/radar_correlator.cpp.s
+.PHONY : apps/radar_correlator.cpp.s
+
+apps/sched_runner.o: apps/sched_runner.cpp.o
+.PHONY : apps/sched_runner.o
+
+# target to build an object file
+apps/sched_runner.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/apps/sched_runner.cpp.o
+.PHONY : apps/sched_runner.cpp.o
+
+apps/sched_runner.i: apps/sched_runner.cpp.i
+.PHONY : apps/sched_runner.i
+
+# target to preprocess a source file
+apps/sched_runner.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/apps/sched_runner.cpp.i
+.PHONY : apps/sched_runner.cpp.i
+
+apps/sched_runner.s: apps/sched_runner.cpp.s
+.PHONY : apps/sched_runner.s
+
+# target to generate assembly for a file
+apps/sched_runner.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/apps/sched_runner.cpp.s
+.PHONY : apps/sched_runner.cpp.s
 
 src/accelerators.o: src/accelerators.cpp.o
 .PHONY : src/accelerators.o
@@ -299,6 +336,30 @@ src/dash/provider.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/schedrt.dir/build.make CMakeFiles/schedrt.dir/src/dash/provider.cpp.s
 .PHONY : src/dash/provider.cpp.s
 
+src/dash/scheduler_binding.o: src/dash/scheduler_binding.cpp.o
+.PHONY : src/dash/scheduler_binding.o
+
+# target to build an object file
+src/dash/scheduler_binding.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schedrt.dir/build.make CMakeFiles/schedrt.dir/src/dash/scheduler_binding.cpp.o
+.PHONY : src/dash/scheduler_binding.cpp.o
+
+src/dash/scheduler_binding.i: src/dash/scheduler_binding.cpp.i
+.PHONY : src/dash/scheduler_binding.i
+
+# target to preprocess a source file
+src/dash/scheduler_binding.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schedrt.dir/build.make CMakeFiles/schedrt.dir/src/dash/scheduler_binding.cpp.i
+.PHONY : src/dash/scheduler_binding.cpp.i
+
+src/dash/scheduler_binding.s: src/dash/scheduler_binding.cpp.s
+.PHONY : src/dash/scheduler_binding.s
+
+# target to generate assembly for a file
+src/dash/scheduler_binding.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schedrt.dir/build.make CMakeFiles/schedrt.dir/src/dash/scheduler_binding.cpp.s
+.PHONY : src/dash/scheduler_binding.cpp.s
+
 src/dash/zip.o: src/dash/zip.cpp.o
 .PHONY : src/dash/zip.o
 
@@ -355,15 +416,19 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... sched_demo"
-	@echo "... sched_demo_dash"
+	@echo "... demo_dash_app"
+	@echo "... radar_correlator_app"
+	@echo "... sched_runner"
 	@echo "... schedrt"
 	@echo "... apps/demo_dash.o"
 	@echo "... apps/demo_dash.i"
 	@echo "... apps/demo_dash.s"
-	@echo "... apps/demo_main.o"
-	@echo "... apps/demo_main.i"
-	@echo "... apps/demo_main.s"
+	@echo "... apps/radar_correlator.o"
+	@echo "... apps/radar_correlator.i"
+	@echo "... apps/radar_correlator.s"
+	@echo "... apps/sched_runner.o"
+	@echo "... apps/sched_runner.i"
+	@echo "... apps/sched_runner.s"
 	@echo "... src/accelerators.o"
 	@echo "... src/accelerators.i"
 	@echo "... src/accelerators.s"
@@ -376,6 +441,9 @@ help:
 	@echo "... src/dash/provider.o"
 	@echo "... src/dash/provider.i"
 	@echo "... src/dash/provider.s"
+	@echo "... src/dash/scheduler_binding.o"
+	@echo "... src/dash/scheduler_binding.i"
+	@echo "... src/dash/scheduler_binding.s"
 	@echo "... src/dash/zip.o"
 	@echo "... src/dash/zip.i"
 	@echo "... src/dash/zip.s"

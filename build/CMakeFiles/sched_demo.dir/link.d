@@ -4,6 +4,7 @@ sched_demo: \
   /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/crtbeginS.o \
   CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o \
   libschedrt.a \
+  /usr/lib/libz.so \
   /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libstdc++.so \
   /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libm.so \
   /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libm.so \
@@ -41,6 +42,8 @@ sched_demo: \
 CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o:
 
 libschedrt.a:
+
+/usr/lib/libz.so:
 
 /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libstdc++.so:
 

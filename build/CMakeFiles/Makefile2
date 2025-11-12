@@ -64,14 +64,16 @@ CMAKE_BINARY_DIR = "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build"
 
 # The main recursive "all" target.
 all: CMakeFiles/schedrt.dir/all
-all: CMakeFiles/sched_demo.dir/all
-all: CMakeFiles/sched_demo_dash.dir/all
+all: CMakeFiles/sched_runner.dir/all
+all: CMakeFiles/demo_dash_app.dir/all
+all: CMakeFiles/radar_correlator_app.dir/all
 .PHONY : all
 
 # The main recursive "codegen" target.
 codegen: CMakeFiles/schedrt.dir/codegen
-codegen: CMakeFiles/sched_demo.dir/codegen
-codegen: CMakeFiles/sched_demo_dash.dir/codegen
+codegen: CMakeFiles/sched_runner.dir/codegen
+codegen: CMakeFiles/demo_dash_app.dir/codegen
+codegen: CMakeFiles/radar_correlator_app.dir/codegen
 .PHONY : codegen
 
 # The main recursive "preinstall" target.
@@ -80,8 +82,9 @@ preinstall:
 
 # The main recursive "clean" target.
 clean: CMakeFiles/schedrt.dir/clean
-clean: CMakeFiles/sched_demo.dir/clean
-clean: CMakeFiles/sched_demo_dash.dir/clean
+clean: CMakeFiles/sched_runner.dir/clean
+clean: CMakeFiles/demo_dash_app.dir/clean
+clean: CMakeFiles/radar_correlator_app.dir/clean
 .PHONY : clean
 
 #=============================================================================
@@ -91,12 +94,12 @@ clean: CMakeFiles/sched_demo_dash.dir/clean
 CMakeFiles/schedrt.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/schedrt.dir/build.make CMakeFiles/schedrt.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/schedrt.dir/build.make CMakeFiles/schedrt.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=5,6,7,8,9,10,11 "Built target schedrt"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=7,8,9,10,11,12,13,14 "Built target schedrt"
 .PHONY : CMakeFiles/schedrt.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/schedrt.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 7
+	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 8
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/schedrt.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 0
 .PHONY : CMakeFiles/schedrt.dir/rule
@@ -108,7 +111,7 @@ schedrt: CMakeFiles/schedrt.dir/rule
 # codegen rule for target.
 CMakeFiles/schedrt.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/schedrt.dir/build.make CMakeFiles/schedrt.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=5,6,7,8,9,10,11 "Finished codegen for target schedrt"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=7,8,9,10,11,12,13,14 "Finished codegen for target schedrt"
 .PHONY : CMakeFiles/schedrt.dir/codegen
 
 # clean rule for target.
@@ -117,68 +120,100 @@ CMakeFiles/schedrt.dir/clean:
 .PHONY : CMakeFiles/schedrt.dir/clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/sched_demo.dir
+# Target rules for target CMakeFiles/sched_runner.dir
 
 # All Build rule for target.
-CMakeFiles/sched_demo.dir/all: CMakeFiles/schedrt.dir/all
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=1,2 "Built target sched_demo"
-.PHONY : CMakeFiles/sched_demo.dir/all
+CMakeFiles/sched_runner.dir/all: CMakeFiles/schedrt.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=5,6 "Built target sched_runner"
+.PHONY : CMakeFiles/sched_runner.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/sched_demo.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 9
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/sched_demo.dir/all
+CMakeFiles/sched_runner.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 10
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/sched_runner.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 0
-.PHONY : CMakeFiles/sched_demo.dir/rule
+.PHONY : CMakeFiles/sched_runner.dir/rule
 
 # Convenience name for target.
-sched_demo: CMakeFiles/sched_demo.dir/rule
-.PHONY : sched_demo
+sched_runner: CMakeFiles/sched_runner.dir/rule
+.PHONY : sched_runner
 
 # codegen rule for target.
-CMakeFiles/sched_demo.dir/codegen:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=1,2 "Finished codegen for target sched_demo"
-.PHONY : CMakeFiles/sched_demo.dir/codegen
+CMakeFiles/sched_runner.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=5,6 "Finished codegen for target sched_runner"
+.PHONY : CMakeFiles/sched_runner.dir/codegen
 
 # clean rule for target.
-CMakeFiles/sched_demo.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo.dir/build.make CMakeFiles/sched_demo.dir/clean
-.PHONY : CMakeFiles/sched_demo.dir/clean
+CMakeFiles/sched_runner.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_runner.dir/build.make CMakeFiles/sched_runner.dir/clean
+.PHONY : CMakeFiles/sched_runner.dir/clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/sched_demo_dash.dir
+# Target rules for target CMakeFiles/demo_dash_app.dir
 
 # All Build rule for target.
-CMakeFiles/sched_demo_dash.dir/all: CMakeFiles/schedrt.dir/all
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=3,4 "Built target sched_demo_dash"
-.PHONY : CMakeFiles/sched_demo_dash.dir/all
+CMakeFiles/demo_dash_app.dir/all: CMakeFiles/schedrt.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=1,2 "Built target demo_dash_app"
+.PHONY : CMakeFiles/demo_dash_app.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/sched_demo_dash.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 9
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/sched_demo_dash.dir/all
+CMakeFiles/demo_dash_app.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 10
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/demo_dash_app.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 0
-.PHONY : CMakeFiles/sched_demo_dash.dir/rule
+.PHONY : CMakeFiles/demo_dash_app.dir/rule
 
 # Convenience name for target.
-sched_demo_dash: CMakeFiles/sched_demo_dash.dir/rule
-.PHONY : sched_demo_dash
+demo_dash_app: CMakeFiles/demo_dash_app.dir/rule
+.PHONY : demo_dash_app
 
 # codegen rule for target.
-CMakeFiles/sched_demo_dash.dir/codegen:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=3,4 "Finished codegen for target sched_demo_dash"
-.PHONY : CMakeFiles/sched_demo_dash.dir/codegen
+CMakeFiles/demo_dash_app.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=1,2 "Finished codegen for target demo_dash_app"
+.PHONY : CMakeFiles/demo_dash_app.dir/codegen
 
 # clean rule for target.
-CMakeFiles/sched_demo_dash.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/sched_demo_dash.dir/build.make CMakeFiles/sched_demo_dash.dir/clean
-.PHONY : CMakeFiles/sched_demo_dash.dir/clean
+CMakeFiles/demo_dash_app.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/demo_dash_app.dir/build.make CMakeFiles/demo_dash_app.dir/clean
+.PHONY : CMakeFiles/demo_dash_app.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/radar_correlator_app.dir
+
+# All Build rule for target.
+CMakeFiles/radar_correlator_app.dir/all: CMakeFiles/schedrt.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=3,4 "Built target radar_correlator_app"
+.PHONY : CMakeFiles/radar_correlator_app.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/radar_correlator_app.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 10
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/radar_correlator_app.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start "/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" 0
+.PHONY : CMakeFiles/radar_correlator_app.dir/rule
+
+# Convenience name for target.
+radar_correlator_app: CMakeFiles/radar_correlator_app.dir/rule
+.PHONY : radar_correlator_app
+
+# codegen rule for target.
+CMakeFiles/radar_correlator_app.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir="/home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles" --progress-num=3,4 "Finished codegen for target radar_correlator_app"
+.PHONY : CMakeFiles/radar_correlator_app.dir/codegen
+
+# clean rule for target.
+CMakeFiles/radar_correlator_app.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/radar_correlator_app.dir/build.make CMakeFiles/radar_correlator_app.dir/clean
+.PHONY : CMakeFiles/radar_correlator_app.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

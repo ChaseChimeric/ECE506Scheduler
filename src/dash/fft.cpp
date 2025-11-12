@@ -1,14 +1,16 @@
+#include "dash/contexts.hpp"
+#include "dash/contexts.hpp"
 #include "dash/fft.hpp"
 #include "dash/provider.hpp"
+#include "dash/scheduler_binding.hpp"
 #include "dash/completion_bus.hpp"
 #include "schedrt/scheduler.hpp"
 #include "schedrt/task.hpp"
+
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <memory>
-#include <random>
-
-extern schedrt::Scheduler* g_sched; // defined in the demo app for simplicity
 
 namespace {
 uint64_t next_id() {
@@ -19,26 +21,26 @@ uint64_t next_id() {
 
 namespace dash {
 bool fft_execute(const FftPlan& plan, BufferView in, BufferView out) {
-    (void)plan; (void)in; (void)out; // In a real system you'd pass buffers via Task params
-
     auto provs = providers_for("fft");
     if (provs.empty()) return false;
 
-    // Pick preferred kind (first provider)
     auto kind = provs.front().kind;
+    auto ctx = std::make_shared<FftContext>();
+    ctx->plan = plan;
+    ctx->in = in;
+    ctx->out = out;
 
     auto t = std::make_shared<schedrt::Task>();
     t->id = next_id();
-    t->app = "fft";                 // must exist in ApplicationRegistry
+    t->app = "fft";
     t->required = kind;
-    t->est_runtime_ms = std::chrono::milliseconds(15);
+    t->est_runtime_ns = std::chrono::nanoseconds(15000000);
+    t->params.emplace(kFftContextKey, std::to_string(reinterpret_cast<std::uintptr_t>(ctx.get())));
 
-    // Subscribe for completion and submit
     auto fut = dash::subscribe(t->id);
-    g_sched->submit(t);
-
-    // Wait synchronously for demo
+    auto* sched = dash::scheduler();
+    if (!sched) return false;
+    sched->submit(t);
     return fut.get();
 }
 } // namespace dash
-

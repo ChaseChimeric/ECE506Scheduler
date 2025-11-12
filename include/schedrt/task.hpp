@@ -21,7 +21,7 @@ struct Task {
     std::optional<std::chrono::steady_clock::time_point> deadline{};
     std::vector<TaskId> depends_on{};
     std::unordered_map<std::string, std::string> params{};
-    std::chrono::milliseconds est_runtime_ms{0};
+    std::chrono::nanoseconds est_runtime_ns{0};
     ResourceKind required{ResourceKind::CPU};
     std::atomic<bool> ready{false};
 };
@@ -30,8 +30,7 @@ struct ExecutionResult {
     Task::TaskId id{};
     bool ok{false};
     std::string message;
-    std::chrono::milliseconds runtime_ms{0};
+    std::chrono::nanoseconds runtime_ns{0};
 };
 
 } // namespace schedrt
-

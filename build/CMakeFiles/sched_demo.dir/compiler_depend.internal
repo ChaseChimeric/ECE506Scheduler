@@ -279,6 +279,7 @@ sched_demo
  /usr/lib/libc_nonshared.a
  /usr/lib/libm.so.6
  /usr/lib/libmvec.so.1
+ /usr/lib/libz.so
  /home/chasechimeric/Documents/Code/ECE506 Scheduler/build/CMakeFiles/sched_demo.dir/apps/demo_main.cpp.o
  /home/chasechimeric/Documents/Code/ECE506 Scheduler/build/libschedrt.a
 

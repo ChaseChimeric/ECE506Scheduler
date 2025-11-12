@@ -20,7 +20,7 @@ bool fft_execute(const FftPlan& plan, BufferView in, BufferView out) {
     auto t = std::make_shared<schedrt::Task>();
     t->id = /* generate */;
     t->app = "fft";                            // used to lookup descriptor
-    t->est_runtime_ms = std::chrono::milliseconds(5); // rough guess
+    t->est_runtime_ns = std::chrono::nanoseconds(5000000); // rough guess
 
     // Decide target kind from provider[0]; scheduler uses the kind to route.
     t->required = provs.front().kind;
@@ -37,4 +37,3 @@ bool fft_execute(const FftPlan& plan, BufferView in, BufferView out) {
 }
 
 } // namespace dash
-
