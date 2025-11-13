@@ -21,6 +21,7 @@ add_library(schedrt SHARED
     src/dash/fft.cpp
     src/dash/zip.cpp
     src/dash/scheduler_binding.cpp
+    src/reporting.cpp
 )
 
 set_target_properties(schedrt PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -55,3 +56,7 @@ target_link_libraries(demo_dash_app PRIVATE schedrt)
 add_library(radar_correlator_app SHARED apps/radar_correlator.cpp)
 target_include_directories(radar_correlator_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(radar_correlator_app PRIVATE schedrt)
+
+add_library(sar_app SHARED apps/SAR/SAR.cpp)
+target_include_directories(sar_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(sar_app PRIVATE schedrt)

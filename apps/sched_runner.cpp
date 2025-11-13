@@ -1,5 +1,6 @@
 #include "apps/app_interface.hpp"
 #include "dash/scheduler_binding.hpp"
+#include "schedrt/reporting.hpp"
 #include "schedrt/scheduler.hpp"
 #include "schedrt/application_registry.hpp"
 
@@ -16,6 +17,7 @@ namespace {
 void print_usage(const char* prog) {
     std::cout << "Usage: " << prog << " --app-lib=PATH [--backend=auto|cpu|fpga] [--cpu-workers=N] "
               << "[--preload-threshold=N] -- [app args...]\n";
+    std::cout << "  --csv-report          emit task lines as CSV (id,ok,msg,time_ns)\n";
 }
 
 BackendMode parse_backend(const std::string& value) {
@@ -41,6 +43,7 @@ int main(int argc, char** argv) {
     unsigned cpu_workers = std::thread::hardware_concurrency();
     if (cpu_workers == 0) cpu_workers = 4;
     unsigned preload_threshold = 3;
+    bool csv_report = false;
 
     int app_arg_start = argc;
     for (int i = 1; i < argc; ++i) {
@@ -69,6 +72,10 @@ int main(int argc, char** argv) {
             preload_threshold = parse_unsigned(arg.substr(sizeof("--preload-threshold=") - 1), preload_threshold);
             continue;
         }
+        if (arg == "--csv-report") {
+            csv_report = true;
+            continue;
+        }
         std::cerr << "Unknown option: " << arg << "\n";
         print_usage(argv[0]);
         return 1;
@@ -86,6 +93,7 @@ int main(int argc, char** argv) {
     ApplicationRegistry reg;
     Scheduler sched(reg, backend, cpu_workers, preload_threshold);
     dash::set_scheduler(&sched);
+    schedrt::reporting::set_csv(csv_report);
 
     void* handle = dlopen(app_lib.c_str(), RTLD_NOW);
     if (!handle) {

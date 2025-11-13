@@ -1,4 +1,5 @@
 
+#include "schedrt/reporting.hpp"
 #include "schedrt/scheduler.hpp"
 #include "dash/completion_bus.hpp"
 #include <algorithm>
@@ -154,8 +155,13 @@ private:
 
     void report(const ExecutionResult& r) {
         std::lock_guard<std::mutex> lk(io_);
-        std::cout << "[RESULT] Task " << r.id << " ok=" << (r.ok ? "true" : "false")
-                  << " msg=\"" << r.message << "\" time_ns=" << r.runtime_ns.count() << "\n";
+            if (schedrt::reporting::csv_enabled()) {
+                std::cout << r.id << "," << (r.ok ? "true" : "false") << ",\""
+                          << r.message << "\"," << r.runtime_ns.count() << "\n";
+            } else {
+                std::cout << "[RESULT] Task " << r.id << " ok=" << (r.ok ? "true" : "false")
+                          << " msg=\"" << r.message << "\" time_ns=" << r.runtime_ns.count() << "\n";
+            }
         dash::fulfill(r.id, r.ok);
     }
 
