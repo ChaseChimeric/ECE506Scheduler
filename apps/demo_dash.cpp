@@ -7,6 +7,7 @@
 #include "schedrt/scheduler.hpp"
 
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -26,6 +27,7 @@ struct DashOptions {
     unsigned cpu_workers = 4;
     unsigned preload_threshold = 3;
     std::string fpga_manager_path = "/sys/class/fpga_manager/fpga0/firmware";
+    std::string bitstream_dir = "bitstreams";
     bool fpga_mock = true;
 };
 
@@ -53,6 +55,10 @@ DashOptions parse_options(int argc, char** argv) {
         }
         if (arg.rfind("--fpga-manager=", 0) == 0) {
             opts.fpga_manager_path = arg.substr(sizeof("--fpga-manager=") - 1);
+            continue;
+        }
+        if (arg.rfind("--bitstream-dir=", 0) == 0) {
+            opts.bitstream_dir = arg.substr(sizeof("--bitstream-dir=") - 1);
             continue;
         }
         if (arg.rfind("--overlay=", 0) == 0) {
@@ -91,8 +97,17 @@ using namespace schedrt;
 
 extern "C" void app_initialize(int argc, char** argv, ApplicationRegistry& reg, Scheduler& sched) {
     g_opts = parse_options(argc, argv);
-    reg.register_app({"zip", "", "zip_kernel"});
-    reg.register_app({"fft", "", "fft_kernel"});
+    auto make_desc = [&](const std::string& app, ResourceKind kind) {
+        schedrt::AppDescriptor desc{};
+        desc.app = app;
+        desc.kernel_name = app + "_kernel";
+        desc.kind = kind;
+        std::filesystem::path base(g_opts.bitstream_dir);
+        desc.bitstream_path = (base / (app + "_partial.bit")).string();
+        return desc;
+    };
+    reg.register_app(make_desc("zip", ResourceKind::ZIP));
+    reg.register_app(make_desc("fft", ResourceKind::FFT));
 
     unsigned next_slot_id = 0;
     unsigned provider_instance = 0;

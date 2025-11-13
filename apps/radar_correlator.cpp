@@ -1,14 +1,18 @@
 #include "apps/app_interface.hpp"
+#include "dash/contexts.hpp"
 #include "dash/fft.hpp"
 #include "dash/provider.hpp"
+#include "dash/completion_bus.hpp"
 #include "schedrt/accelerator.hpp"
 #include "schedrt/application_registry.hpp"
 #include "schedrt/scheduler.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -63,6 +67,31 @@ std::filesystem::path discover_input(int argc, char** argv) {
     throw std::runtime_error("input directory not found");
 }
 
+std::atomic<uint64_t> g_next_fft_id{5000};
+
+struct ScheduledFFT {
+    std::shared_ptr<dash::FftContext> ctx;
+    std::future<bool> fut;
+};
+
+ScheduledFFT schedule_fft_task(schedrt::Scheduler& sched, float* in_buf, float* out_buf, size_t len, bool inverse) {
+    auto ctx = std::make_shared<dash::FftContext>();
+    ctx->plan = {static_cast<int>(len), inverse};
+    ctx->in = {in_buf, len * sizeof(float)};
+    ctx->out = {out_buf, len * sizeof(float)};
+
+    auto task = std::make_shared<schedrt::Task>();
+    task->id = g_next_fft_id.fetch_add(1, std::memory_order_relaxed);
+    task->app = "fft";
+    task->required = schedrt::ResourceKind::FFT;
+    task->est_runtime_ns = std::chrono::nanoseconds(15000000);
+    task->params.emplace(dash::kFftContextKey, std::to_string(reinterpret_cast<std::uintptr_t>(ctx.get())));
+
+    auto fut = dash::subscribe(task->id);
+    sched.submit(task);
+    return ScheduledFFT{ctx, std::move(fut)};
+}
+
 } // namespace
 
 using namespace schedrt;
@@ -77,7 +106,6 @@ extern "C" void app_initialize(int argc, char** argv, ApplicationRegistry& reg, 
 }
 
 extern "C" int app_run(int argc, char** argv, Scheduler& sched) {
-    (void)sched;
     namespace fs = std::filesystem;
     fs::path asset_dir;
     try {
@@ -114,12 +142,9 @@ extern "C" int app_run(int argc, char** argv, Scheduler& sched) {
     std::vector<float> corr_freq(complex_slots, 0.0f);
     std::vector<float> corr_time(complex_slots, 0.0f);
 
-    if (!dash::fft_execute({static_cast<int>(fft_len), false},
-                           {chirp.data(), chirp.size() * sizeof(float)},
-                           {X1.data(), X1.size() * sizeof(float)}) ||
-        !dash::fft_execute({static_cast<int>(fft_len), false},
-                           {received.data(), received.size() * sizeof(float)},
-                           {X2.data(), X2.size() * sizeof(float)})) {
+    auto fft1 = schedule_fft_task(sched, chirp.data(), X1.data(), fft_len, false);
+    auto fft2 = schedule_fft_task(sched, received.data(), X2.data(), fft_len, false);
+    if (!fft1.fut.get() || !fft2.fut.get()) {
         std::cerr << "fft execution failed\n";
         return 1;
     }
@@ -133,9 +158,8 @@ extern "C" int app_run(int argc, char** argv, Scheduler& sched) {
         corr_freq[2 * i + 1] = (b * c) - (a * d);
     }
 
-    if (!dash::fft_execute({static_cast<int>(fft_len), true},
-                           {corr_freq.data(), corr_freq.size() * sizeof(float)},
-                           {corr_time.data(), corr_time.size() * sizeof(float)})) {
+    auto inverse_fft = schedule_fft_task(sched, corr_freq.data(), corr_time.data(), fft_len, true);
+    if (!inverse_fft.fut.get()) {
         std::cerr << "inverse fft failed\n";
         return 1;
     }
