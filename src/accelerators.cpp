@@ -119,7 +119,8 @@ public:
         }
         auto t1 = std::chrono::steady_clock::now();
         return {task.id, ok, message,
-                std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0)};
+                std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0),
+                name()};
     }
 private:
     unsigned id_;
@@ -168,7 +169,7 @@ bool FpgaSlotAccelerator::prepare_static() {
 ExecutionResult FpgaSlotAccelerator::run(const Task& task, const AppDescriptor& app) {
     std::lock_guard<std::mutex> run_lk(run_mu_);
     if (!ensure_app_loaded(app)) {
-        return {task.id, false, "Failed to ensure " + app.app + " on " + name(), std::chrono::nanoseconds(0)};
+        return {task.id, false, "Failed to ensure " + app.app + " on " + name(), std::chrono::nanoseconds(0), name()};
     }
     auto t0 = std::chrono::steady_clock::now();
     if (opts_.mock_mode) {
@@ -178,7 +179,7 @@ ExecutionResult FpgaSlotAccelerator::run(const Task& task, const AppDescriptor& 
     }
     auto t1 = std::chrono::steady_clock::now();
     std::chrono::nanoseconds elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0);
-    return {task.id, true, "Executed " + app.app + " on " + name(), elapsed};
+    return {task.id, true, "Executed " + app.app + " on " + name(), elapsed, name()};
 }
 
 std::string FpgaSlotAccelerator::current_app() const {

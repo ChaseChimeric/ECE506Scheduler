@@ -143,12 +143,12 @@ private:
             record_ready(task, -1);
 
             auto appOpt = reg_.lookup(task->app);
-           if (!appOpt) { report({task->id, false, "Unknown app: " + task->app, std::chrono::milliseconds(0)}); continue; } 
+            if (!appOpt) { report({task->id, false, "Unknown app: " + task->app, std::chrono::milliseconds(0), "none"}); continue; }
             auto app = *appOpt;
 
             Accelerator* chosen = select_accelerator(task, app);
             if (!chosen) {
-                report({task->id, false, "No accelerator available", std::chrono::milliseconds(0)});
+                report({task->id, false, "No accelerator available", std::chrono::milliseconds(0), "none"});
                 continue;
             }
 
@@ -160,12 +160,16 @@ private:
 
     void report(const ExecutionResult& r) {
         std::lock_guard<std::mutex> lk(io_);
+            bool used_fpga = r.accelerator.find("fpga") != std::string::npos;
             if (schedrt::reporting::csv_enabled()) {
-                std::cout << r.id << "," << (r.ok ? "true" : "false") << ",\""
-                          << r.message << "\"," << r.runtime_ns.count() << "\n";
+                std::cout << r.id << "," << (r.ok ? "true" : "false") << ","
+                          << r.accelerator << ",\"" << r.message << "\","
+                          << r.runtime_ns.count() << "," << (used_fpga ? "fpga" : "cpu") << "\n";
             } else {
                 std::cout << "[RESULT] Task " << r.id << " ok=" << (r.ok ? "true" : "false")
-                          << " msg=\"" << r.message << "\" time_ns=" << r.runtime_ns.count() << "\n";
+                          << " accel=\"" << r.accelerator << "\" msg=\"" << r.message
+                          << "\" time_ns=" << r.runtime_ns.count()
+                          << " (" << (used_fpga ? "fpga" : "cpu") << ")\n";
             }
         dash::fulfill(r.id, r.ok);
     }

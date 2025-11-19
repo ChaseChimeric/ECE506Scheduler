@@ -31,6 +31,7 @@ struct ExecutionResult {
     bool ok{false};
     std::string message;
     std::chrono::nanoseconds runtime_ns{0};
+    std::string accelerator;
 };
 
 } // namespace schedrt
