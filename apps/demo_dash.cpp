@@ -20,6 +20,7 @@ namespace {
 struct OverlaySpec {
     std::string app;
     unsigned count = 1;
+    std::string bitstream;
 };
 
 struct DashOptions {
@@ -28,6 +29,7 @@ struct DashOptions {
     unsigned preload_threshold = 3;
     std::string fpga_manager_path = "/sys/class/fpga_manager/fpga0/firmware";
     std::string bitstream_dir = "bitstreams";
+    std::string static_bitstream = "bitstreams/static_wrapper.bit";
     bool fpga_mock = true;
 };
 
@@ -61,14 +63,24 @@ DashOptions parse_options(int argc, char** argv) {
             opts.bitstream_dir = arg.substr(sizeof("--bitstream-dir=") - 1);
             continue;
         }
+        if (arg.rfind("--static-bitstream=", 0) == 0) {
+            opts.static_bitstream = arg.substr(sizeof("--static-bitstream=") - 1);
+            continue;
+        }
         if (arg.rfind("--overlay=", 0) == 0) {
             std::string spec = arg.substr(sizeof("--overlay=") - 1);
-            auto colon = spec.find(':');
-            OverlaySpec overlay;
-            overlay.app = colon == std::string::npos ? spec : spec.substr(0, colon);
-            if (colon != std::string::npos && colon + 1 < spec.size()) {
-                overlay.count = parse_unsigned(spec.substr(colon + 1), overlay.count);
+            std::vector<std::string> parts;
+            size_t start = 0;
+            while (start < spec.size()) {
+                auto pos = spec.find(':', start);
+                if (pos == std::string::npos) pos = spec.size();
+                parts.push_back(spec.substr(start, pos - start));
+                start = pos + 1;
             }
+            OverlaySpec overlay;
+            if (!parts.empty()) overlay.app = parts[0];
+            if (parts.size() > 1) overlay.count = parse_unsigned(parts[1], overlay.count);
+            if (parts.size() > 2) overlay.bitstream = parts[2];
             if (!overlay.app.empty()) opts.overlays.push_back(overlay);
             continue;
         }
@@ -85,6 +97,7 @@ DashOptions parse_options(int argc, char** argv) {
     if (opts.overlays.empty()) {
         opts.overlays.push_back({"zip", 2});
         opts.overlays.push_back({"fft", 1});
+        opts.overlays.push_back({"fir", 1});
     }
     return opts;
 }
@@ -95,19 +108,43 @@ DashOptions g_opts;
 
 using namespace schedrt;
 
+ResourceKind resource_for_app(const std::string& app) {
+    if (app == "zip") return ResourceKind::ZIP;
+    if (app == "fft") return ResourceKind::FFT;
+    if (app == "fir") return ResourceKind::FIR;
+    return ResourceKind::CPU;
+}
+
 extern "C" void app_initialize(int argc, char** argv, ApplicationRegistry& reg, Scheduler& sched) {
     g_opts = parse_options(argc, argv);
-    auto make_desc = [&](const std::string& app, ResourceKind kind) {
-        schedrt::AppDescriptor desc{};
-        desc.app = app;
-        desc.kernel_name = app + "_kernel";
+    std::filesystem::path base(g_opts.bitstream_dir);
+    std::unordered_set<std::string> seen_apps;
+    for (const auto& overlay : g_opts.overlays) {
+        ResourceKind kind = resource_for_app(overlay.app);
+        std::filesystem::path bit = overlay.bitstream.empty()
+            ? base / (overlay.app + "_partial.bit")
+            : base / overlay.bitstream;
+        AppDescriptor desc{};
+        desc.app = overlay.app;
+        desc.kernel_name = overlay.app + "_kernel";
         desc.kind = kind;
-        std::filesystem::path base(g_opts.bitstream_dir);
-        desc.bitstream_path = (base / (app + "_partial.bit")).string();
-        return desc;
+        desc.bitstream_path = bit.string();
+        reg.register_app(desc);
+        seen_apps.insert(overlay.app);
+    }
+    auto ensure_app = [&](const std::string& name, ResourceKind kind) {
+        if (seen_apps.insert(name).second) {
+            AppDescriptor desc{};
+            desc.app = name;
+            desc.kernel_name = name + "_kernel";
+            desc.kind = kind;
+            desc.bitstream_path = (base / (name + "_partial.bit")).string();
+            reg.register_app(desc);
+        }
     };
-    reg.register_app(make_desc("zip", ResourceKind::ZIP));
-    reg.register_app(make_desc("fft", ResourceKind::FFT));
+    ensure_app("zip", ResourceKind::ZIP);
+    ensure_app("fft", ResourceKind::FFT);
+    ensure_app("fir", ResourceKind::FIR);
 
     unsigned next_slot_id = 0;
     unsigned provider_instance = 0;
@@ -122,6 +159,7 @@ extern "C" void app_initialize(int argc, char** argv, ApplicationRegistry& reg, 
         if (overlay.count > 0) {
             for (unsigned i = 0; i < overlay.count; ++i) {
                 FpgaSlotOptions slot_opts{g_opts.fpga_manager_path, g_opts.fpga_mock};
+                slot_opts.static_bitstream = g_opts.static_bitstream;
                 sched.add_accelerator(make_fpga_slot(next_slot_id++, slot_opts));
                 dash::register_provider({overlay.app, descOpt->kind, provider_instance++, 0});
             }
@@ -130,7 +168,7 @@ extern "C" void app_initialize(int argc, char** argv, ApplicationRegistry& reg, 
             dash::register_provider({overlay.app, ResourceKind::CPU, provider_instance++, 10});
         }
     }
-    for (const auto* op : {"zip", "fft"}) {
+    for (const auto* op : {"zip", "fft", "fir"}) {
         if (cpu_registered.insert(op).second) {
             dash::register_provider({op, ResourceKind::CPU, provider_instance++, 10});
         }

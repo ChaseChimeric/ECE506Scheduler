@@ -86,6 +86,11 @@ public:
                     fpga_ok = true; break;
                 }
             }
+            for (auto& a : accelerators_) {
+                if (!a->prepare_static()) {
+                    std::cerr << "Failed to load static overlay on " << a->name() << "\n";
+                }
+            }
         }
         use_cpu_ = (mode_ == BackendMode::CPU) || (mode_ == BackendMode::AUTO && !fpga_ok);
 

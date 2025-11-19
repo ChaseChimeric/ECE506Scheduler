@@ -9,7 +9,7 @@
 
 namespace schedrt {
 
-enum class ResourceKind { CPU, ZIP, FFT };
+enum class ResourceKind { CPU, ZIP, FFT, FIR };
 
 struct Task {
     using TaskId = uint64_t;

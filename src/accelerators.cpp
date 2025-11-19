@@ -153,6 +153,18 @@ bool FpgaSlotAccelerator::ensure_app_loaded(const AppDescriptor& app) {
     return true;
 }
 
+bool FpgaSlotAccelerator::prepare_static() {
+    std::lock_guard<std::mutex> lk(mu_);
+    if (static_loaded_ || opts_.static_bitstream.empty()) return true;
+    if (!load_bitstream(opts_.static_bitstream)) {
+        log("Failed to load static shell " + opts_.static_bitstream);
+        return false;
+    }
+    static_loaded_ = true;
+    log("Static shell loaded: " + opts_.static_bitstream);
+    return true;
+}
+
 ExecutionResult FpgaSlotAccelerator::run(const Task& task, const AppDescriptor& app) {
     std::lock_guard<std::mutex> run_lk(run_mu_);
     if (!ensure_app_loaded(app)) {

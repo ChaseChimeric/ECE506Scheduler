@@ -21,11 +21,13 @@ public:
     virtual bool ensure_app_loaded(const AppDescriptor& app) = 0;
     virtual ExecutionResult run(const Task& task, const AppDescriptor& app) = 0;
     virtual bool is_reconfigurable() const { return false; }
+    virtual bool prepare_static() { return true; }
 };
 
 struct FpgaSlotOptions {
     std::string manager_path = "/sys/class/fpga_manager/fpga0/firmware";
     bool mock_mode = true;
+    std::string static_bitstream;
 };
 
 class FpgaSlotAccelerator : public Accelerator {
@@ -35,6 +37,7 @@ public:
     bool is_available() override;
     bool ensure_app_loaded(const AppDescriptor& app) override;
     ExecutionResult run(const Task& task, const AppDescriptor& app) override;
+    bool prepare_static() override;
     bool is_reconfigurable() const override { return true; }
     std::string current_app() const;
     ResourceKind current_kind() const;
@@ -50,6 +53,7 @@ private:
     std::string current_app_;
     ResourceKind current_kind_{ResourceKind::CPU};
     bool configured_{false};
+    bool static_loaded_{false};
 };
 
 /// Factory helpers (implemented in accelerators.cpp)
