@@ -10,10 +10,19 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(BUILD_DEMO "Build simple demo (demo_main)" ON)
 option(BUILD_DEMO_DASH "Build DASH-style demo (demo_dash)" ON)
 
+# XRT dependencies (required for DMA allocations)
+find_path(XRT_INCLUDE_DIR xrt/xrt_device.h REQUIRED)
+find_library(XRT_CORE_LIBRARY xrt_core REQUIRED)
+
 # Library
 add_library(schedrt SHARED
     src/scheduler.cpp
     src/accelerators.cpp
+
+    third_party/cynq/src/cynq/memory.cpp
+    third_party/cynq/src/cynq/xrt/memory.cpp
+    third_party/cynq/src/cynq/dma/datamover.cpp
+    third_party/pynq-c-api/pynq_api.c
 
     # DASH layer sources
     src/dash/provider.cpp
@@ -30,6 +39,10 @@ set_target_properties(schedrt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(schedrt
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cynq/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/pynq-c-api
+        ${XRT_INCLUDE_DIR}
 )
 
 # Warnings (optional but recommended)
@@ -43,6 +56,7 @@ endif()
 find_package(Threads REQUIRED)
 find_package(ZLIB REQUIRED)
 target_link_libraries(schedrt PUBLIC Threads::Threads ZLIB::ZLIB)
+target_link_libraries(schedrt PRIVATE ${XRT_CORE_LIBRARY})
 
 # Demos
 add_executable(sched_runner apps/sched_runner.cpp)

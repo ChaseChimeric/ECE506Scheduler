@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <exception>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -20,6 +21,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <zlib.h>
+#include <cynq/dma/datamover.hpp>
+#include <cynq/ultrascale/hardware.hpp>
 
 namespace {
 template <typename T>
@@ -97,66 +100,6 @@ bool run_fft_operation(dash::FftContext& ctx) {
     ctx.message = "fft: computed n=" + std::to_string(n);
     return true;
 }
-
-class UdmabufRegion {
-public:
-    ~UdmabufRegion() {
-        if (virt_) munmap(virt_, size_);
-        if (fd_ >= 0) close(fd_);
-    }
-
-    bool init(const std::string& dev_name, size_t min_size_bytes) {
-        std::string sysfs_base = "/sys/class/u-dma-buf/" + dev_name;
-        uint64_t size_value = 0;
-        if (!read_value(sysfs_base + "/size", &size_value)) return false;
-        if (size_value < min_size_bytes) {
-            std::cerr << "[udmabuf] device " << dev_name << " too small (" << size_value << " bytes)\n";
-            return false;
-        }
-        uint64_t phys_value = 0;
-        if (!read_value(sysfs_base + "/phys_addr", &phys_value)) return false;
-        std::string dev_path = "/dev/" + dev_name;
-        fd_ = ::open(dev_path.c_str(), O_RDWR | O_SYNC);
-        if (fd_ < 0) {
-            std::cerr << "[udmabuf] open(" << dev_path << ") failed: " << strerror(errno) << "\n";
-            return false;
-        }
-        void* map = mmap(nullptr, size_value, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
-        if (map == MAP_FAILED) {
-            std::cerr << "[udmabuf] mmap failed: " << strerror(errno) << "\n";
-            close(fd_);
-            fd_ = -1;
-            return false;
-        }
-        virt_ = map;
-        size_ = static_cast<size_t>(size_value);
-        phys_ = phys_value;
-        return true;
-    }
-
-    void* virt() const { return virt_; }
-    size_t size() const { return size_; }
-    uint64_t phys() const { return phys_; }
-
-private:
-    static bool read_value(const std::string& path, uint64_t* out) {
-        std::ifstream ifs(path);
-        if (!ifs) return false;
-        std::string text;
-        ifs >> text;
-        try {
-            *out = std::stoull(text, nullptr, 0);
-        } catch (...) {
-            return false;
-        }
-        return true;
-    }
-
-    int fd_{-1};
-    void* virt_{nullptr};
-    size_t size_{0};
-    uint64_t phys_{0};
-};
 
 class AxiDmaController {
 public:
@@ -291,12 +234,41 @@ public:
     FftHwRunner() = default;
 
     bool initialize() {
-        std::string udmabuf_name = "udmabuf0";
-        if (const char* env = std::getenv("SCHEDRT_UDMABUF")) udmabuf_name = env;
-        if (!buffer_.init(udmabuf_name, 1 << 19)) {
-            std::cerr << "[fft-hw] missing udmabuf (" << udmabuf_name << ")\n";
+        auto params = std::make_shared<cynq::UltraScaleParameters>();
+        try {
+            params->device_ = xrt::device(0);
+        } catch (const std::exception& ex) {
+            std::cerr << "[fft-hw] unable to open xrt device: " << ex.what() << "\n";
             return false;
         }
+
+        data_mover_ = std::make_shared<cynq::DMADataMover>(0, params);
+        if (!data_mover_) {
+            std::cerr << "[fft-hw] failed to create DMA allocator\n";
+            return false;
+        }
+
+        constexpr size_t half_buf_bytes = kHalfBufferBytes;
+        input_mem_ = data_mover_->GetBuffer(half_buf_bytes, 0, cynq::MemoryType::Dual);
+        output_mem_ = data_mover_->GetBuffer(half_buf_bytes, 0, cynq::MemoryType::Dual);
+        if (!input_mem_ || !output_mem_) {
+            std::cerr << "[fft-hw] unable to allocate DMA buffers\n";
+            return false;
+        }
+
+        if (input_mem_->Size() < half_buf_bytes || output_mem_->Size() < half_buf_bytes) {
+            std::cerr << "[fft-hw] DMA buffer too small\n";
+            return false;
+        }
+
+        auto input_dev = input_mem_->DeviceAddress<uint8_t>();
+        auto output_dev = output_mem_->DeviceAddress<uint8_t>();
+        if (!input_dev || !output_dev) {
+            std::cerr << "[fft-hw] could not query DMA physical address\n";
+            return false;
+        }
+        input_phys_ = reinterpret_cast<uint64_t>(input_dev.get());
+        output_phys_ = reinterpret_cast<uint64_t>(output_dev.get());
 
         uintptr_t dma_base = 0x40400000;
         if (const char* env = std::getenv("SCHEDRT_DMA_BASE")) {
@@ -311,8 +283,7 @@ public:
             std::cerr << "[fft-hw] unable to initialize AXI DMA\n";
             return false;
         }
-        input_offset_ = 0;
-        output_offset_ = buffer_.size() / 2;
+
         ready_ = true;
         return true;
     }
@@ -331,8 +302,7 @@ public:
         }
         if (sample_count == 0) return false;
         size_t bytes = sample_count * sizeof(int16_t) * 2;
-        size_t half_buf = buffer_.size() / 2;
-        if (bytes > half_buf) {
+        if (bytes > kHalfBufferBytes) {
             std::cerr << "[fft-hw] requested transfer exceeds buffer size\n";
             return false;
         }
@@ -344,9 +314,15 @@ public:
             return false;
         }
 
-        auto* hw_in = reinterpret_cast<int16_t*>(static_cast<uint8_t*>(buffer_.virt()) + input_offset_);
-        auto* hw_out = reinterpret_cast<int16_t*>(static_cast<uint8_t*>(buffer_.virt()) + output_offset_);
+        auto in_host = input_mem_->HostAddress<int16_t>();
+        auto out_host = output_mem_->HostAddress<int16_t>();
+        if (!in_host || !out_host) {
+            std::cerr << "[fft-hw] missing host buffer mappings\n";
+            return false;
+        }
 
+        int16_t* hw_in = in_host.get();
+        int16_t* hw_out = out_host.get();
         for (size_t i = 0; i < sample_count * 2; ++i) {
             float value = input[i];
             if (value > 0.999969f) value = 0.999969f;
@@ -354,7 +330,7 @@ public:
             hw_in[i] = static_cast<int16_t>(std::lrint(value * 32767.0f));
         }
 
-        if (!dma_->transfer(buffer_.phys() + input_offset_, buffer_.phys() + output_offset_, bytes)) {
+        if (!dma_->transfer(input_phys_, output_phys_, bytes)) {
             ctx.ok = false;
             ctx.message = "fft: hw DMA failure";
             return false;
@@ -369,10 +345,15 @@ public:
     }
 
 private:
-    UdmabufRegion buffer_;
+    static constexpr size_t kTotalBufferBytes = 1 << 19;
+    static constexpr size_t kHalfBufferBytes = kTotalBufferBytes / 2;
+
+    std::shared_ptr<cynq::DMADataMover> data_mover_;
+    std::shared_ptr<cynq::IMemory> input_mem_;
+    std::shared_ptr<cynq::IMemory> output_mem_;
     std::unique_ptr<AxiDmaController> dma_;
-    size_t input_offset_{0};
-    size_t output_offset_{0};
+    uint64_t input_phys_{0};
+    uint64_t output_phys_{0};
     bool ready_{false};
     std::mutex mu_;
 };
