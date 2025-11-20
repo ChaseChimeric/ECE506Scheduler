@@ -121,8 +121,12 @@ extern "C" int app_run(int argc, char** argv, Scheduler& sched) {
     std::vector<double> received_raw;
     if (!load_data(asset_dir / "received_input.txt", received_raw)) return 1;
 
-    size_t n_samples = time.size();
-    size_t fft_len = 2 * n_samples;
+    const size_t target_fft_len = 65536;
+    if (time.size() < target_fft_len) time.resize(target_fft_len, 0.0);
+    if (received_raw.size() < 2 * target_fft_len) received_raw.resize(2 * target_fft_len, 0.0);
+
+    size_t n_samples = target_fft_len;
+    size_t fft_len = target_fft_len;
     size_t complex_slots = 2 * fft_len;
 
     std::vector<float> chirp(complex_slots, 0.0f);
