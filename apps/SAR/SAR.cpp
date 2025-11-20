@@ -98,7 +98,9 @@ using namespace schedrt;
 extern "C" void app_initialize(int argc, char** argv, ApplicationRegistry& reg, Scheduler& sched) {
     (void)argc;
     (void)argv;
-    reg.register_app({"fft", "", "fft_kernel"});
+    if (!reg.lookup("fft")) {
+        reg.register_app({"fft", "", "fft_kernel"});
+    }
     sched.add_accelerator(make_cpu_mock(0));
     dash::register_provider({"fft", ResourceKind::FFT, 0, 0});
     dash::register_provider({"fft", ResourceKind::CPU, 0, 10});
