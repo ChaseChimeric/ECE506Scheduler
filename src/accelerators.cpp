@@ -298,7 +298,8 @@ public:
             return false;
         }
 
-        uintptr_t dma_base = 0x40400000;
+        // AXI DMA control registers live at 0x40410000 in the top_reconfig design.
+        uintptr_t dma_base = 0x40410000;
         if (const char* env = std::getenv("SCHEDRT_DMA_BASE")) {
             try {
                 dma_base = static_cast<uintptr_t>(std::stoull(env, nullptr, 0));
