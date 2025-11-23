@@ -161,8 +161,8 @@ private:
 
 class AxiDmaController {
 public:
-    AxiDmaController(uintptr_t base_phys, size_t span_bytes)
-        : base_phys_(base_phys), span_(span_bytes) {}
+    AxiDmaController(uintptr_t base_phys, size_t span_bytes, bool debug_log)
+        : base_phys_(base_phys), span_(span_bytes), debug_(debug_log) {}
 
     ~AxiDmaController() {
         if (regs_) munmap(const_cast<uint32_t*>(regs_), span_);
@@ -170,10 +170,17 @@ public:
     }
 
     bool init() {
+        if (debug_) {
+            std::cout << "[axi-dma] opening /dev/mem\n";
+        }
         mem_fd_ = ::open("/dev/mem", O_RDWR | O_SYNC);
         if (mem_fd_ < 0) {
             std::cerr << "[axi-dma] unable to open /dev/mem: " << strerror(errno) << "\n";
             return false;
+        }
+        if (debug_) {
+            std::cout << "[axi-dma] mapping phys=0x" << std::hex << base_phys_
+                      << " span=0x" << span_ << std::dec << "\n";
         }
         void* mapped = mmap(nullptr, span_, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd_, base_phys_);
         if (mapped == MAP_FAILED) {
@@ -183,8 +190,14 @@ public:
             return false;
         }
         regs_ = static_cast<volatile uint32_t*>(mapped);
+        if (debug_) {
+            std::cout << "[axi-dma] mapped control region, issuing soft reset\n";
+        }
         reset_channel(true);
         reset_channel(false);
+        if (debug_) {
+            std::cout << "[axi-dma] reset complete\n";
+        }
         ready_ = true;
         return true;
     }
@@ -274,6 +287,7 @@ private:
     uintptr_t base_phys_{0};
     size_t span_{0};
     bool ready_{false};
+    bool debug_{false};
 
     static constexpr off_t MM2S_DMACR = 0x00;
     static constexpr off_t MM2S_DMASR = 0x04;
@@ -311,9 +325,13 @@ public:
             }
         }
         constexpr size_t kDmaRegSpan = 0x10000;
+        bool dma_debug = std::getenv("SCHEDRT_DMA_DEBUG") != nullptr;
         std::cout << "[fft-hw] AXI DMA regs phys=0x" << std::hex << dma_base
                   << " span=0x" << kDmaRegSpan << std::dec << "\n";
-        dma_ = std::make_unique<AxiDmaController>(dma_base, kDmaRegSpan);
+        if (dma_debug) {
+            std::cout << "[fft-hw] DMA debug logging enabled (SCHEDRT_DMA_DEBUG)\n";
+        }
+        dma_ = std::make_unique<AxiDmaController>(dma_base, kDmaRegSpan, dma_debug);
         if (!dma_->init()) {
             std::cerr << "[fft-hw] unable to initialize AXI DMA\n";
             return false;
