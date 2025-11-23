@@ -165,10 +165,8 @@ int main(int argc, char** argv) {
     }
 
     struct OverlayEntry {
-        std::string app;
-        ResourceKind kind;
+        AppDescriptor desc;
         unsigned count;
-        std::string bitstream;
     };
     std::vector<OverlayEntry> registered;
     ApplicationRegistry reg;
@@ -184,7 +182,7 @@ int main(int argc, char** argv) {
         desc.kind = kind;
         desc.bitstream_path = bit.string();
         reg.register_app(desc);
-        registered.push_back({overlay.app, kind, overlay.count, desc.bitstream_path});
+        registered.push_back({desc, overlay.count});
     }
 
     Scheduler sched(reg, backend, cpu_workers, preload_threshold);
@@ -193,16 +191,19 @@ int main(int argc, char** argv) {
     unsigned next_slot_id = 0;
     unsigned provider_instance = 0;
     std::unordered_set<std::string> cpu_registered;
-    for (const auto& desc : registered) {
-        for (unsigned i = 0; i < desc.count; ++i) {
+    for (const auto& entry : registered) {
+        for (unsigned i = 0; i < entry.count; ++i) {
             FpgaSlotOptions opts{fpga_manager, !fpga_real};
             opts.static_bitstream = static_bitstream;
             opts.debug_logging = fpga_debug;
-            sched.add_accelerator(make_fpga_slot(next_slot_id++, opts));
-            dash::register_provider({desc.app, desc.kind, provider_instance++, 0});
+            auto slot = make_fpga_slot(next_slot_id++, opts);
+            slot->prepare_static();
+            slot->ensure_app_loaded(entry.desc);
+            dash::register_provider({entry.desc.app, entry.desc.kind, provider_instance++, 0});
+            sched.add_accelerator(std::move(slot));
         }
-        if (cpu_registered.insert(desc.app).second) {
-            dash::register_provider({desc.app, ResourceKind::CPU, provider_instance++, 10});
+        if (cpu_registered.insert(entry.desc.app).second) {
+            dash::register_provider({entry.desc.app, ResourceKind::CPU, provider_instance++, 10});
         }
     }
     if (cpu_registered.insert("zip").second) {
