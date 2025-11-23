@@ -23,6 +23,7 @@ void print_usage(const char* prog) {
     std::cout << "Usage: " << prog << " --app-lib=PATH [--backend=auto|cpu|fpga] [--cpu-workers=N] "
               << "[--preload-threshold=N] -- [app args...]\n";
     std::cout << "  --csv-report          emit task lines as CSV (id,ok,msg,time_ns)\n";
+    std::cout << "  --fpga-debug          enable verbose logging inside the FPGA accelerators\n";
 }
 
 BackendMode parse_backend(const std::string& value) {
@@ -66,6 +67,7 @@ int main(int argc, char** argv) {
     std::string static_bitstream = "bitstreams/static_wrapper.bit";
     std::string fpga_manager = "/sys/class/fpga_manager/fpga0/firmware";
     bool fpga_real = false;
+    bool fpga_debug = false;
     std::vector<OverlaySpec> overlays;
 
     int app_arg_start = argc;
@@ -113,6 +115,10 @@ int main(int argc, char** argv) {
         }
         if (arg == "--fpga-mock") {
             fpga_real = false;
+            continue;
+        }
+        if (arg == "--fpga-debug") {
+            fpga_debug = true;
             continue;
         }
         if (arg.rfind("--overlay=", 0) == 0) {
@@ -191,6 +197,7 @@ int main(int argc, char** argv) {
         for (unsigned i = 0; i < desc.count; ++i) {
             FpgaSlotOptions opts{fpga_manager, !fpga_real};
             opts.static_bitstream = static_bitstream;
+            opts.debug_logging = fpga_debug;
             sched.add_accelerator(make_fpga_slot(next_slot_id++, opts));
             dash::register_provider({desc.app, desc.kind, provider_instance++, 0});
         }

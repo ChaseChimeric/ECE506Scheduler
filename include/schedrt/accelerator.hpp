@@ -28,6 +28,7 @@ struct FpgaSlotOptions {
     std::string manager_path = "/sys/class/fpga_manager/fpga0/firmware";
     bool mock_mode = true;
     std::string static_bitstream;
+    bool debug_logging = false;
 };
 
 class FpgaSlotAccelerator : public Accelerator {
@@ -45,6 +46,7 @@ public:
 private:
     bool load_bitstream(const std::string& path);
     void log(const std::string& msg) const;
+    void log_debug(const std::string& msg) const;
 
     unsigned slot_;
     FpgaSlotOptions opts_;

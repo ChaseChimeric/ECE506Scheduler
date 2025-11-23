@@ -440,6 +440,8 @@ bool FpgaSlotAccelerator::is_available() {
 
 bool FpgaSlotAccelerator::ensure_app_loaded(const AppDescriptor& app) {
     std::lock_guard<std::mutex> lk(mu_);
+    log_debug("ensure_app_loaded app=" + app.app + " kind=" + std::to_string(static_cast<int>(app.kind))
+              + " bitstream=" + app.bitstream_path);
     if (configured_ && current_app_ == app.app) return true;
     if (!load_bitstream(app.bitstream_path)) {
         log("Failed to load " + app.app);
@@ -455,6 +457,7 @@ bool FpgaSlotAccelerator::ensure_app_loaded(const AppDescriptor& app) {
 bool FpgaSlotAccelerator::prepare_static() {
     std::lock_guard<std::mutex> lk(mu_);
     if (static_loaded_ || opts_.static_bitstream.empty()) return true;
+    log_debug("prepare_static shell=" + opts_.static_bitstream);
     if (!load_bitstream(opts_.static_bitstream)) {
         log("Failed to load static shell " + opts_.static_bitstream);
         return false;
@@ -466,16 +469,18 @@ bool FpgaSlotAccelerator::prepare_static() {
 
 ExecutionResult FpgaSlotAccelerator::run(const Task& task, const AppDescriptor& app) {
     std::lock_guard<std::mutex> run_lk(run_mu_);
+    log_debug("run task id=" + std::to_string(task.id) + " app=" + task.app);
     if (!ensure_app_loaded(app)) {
         return {task.id, false, "Failed to ensure " + app.app + " on " + name(), std::chrono::nanoseconds(0), name()};
     }
     auto t0 = std::chrono::steady_clock::now();
     bool ok = true;
     std::string message = "Executed " + app.app + " on " + name();
-    if (!opts_.mock_mode && task.app == "fft") {
+if (!opts_.mock_mode && task.app == "fft") {
         auto* ctx = fft_context(task);
         bool ran_hw = false;
         if (ctx) {
+            log_debug("fft context available for task=" + std::to_string(task.id));
             auto runner = acquire_fft_runner();
             if (runner && runner->available()) {
                 ran_hw = runner->execute(*ctx);
@@ -483,10 +488,12 @@ ExecutionResult FpgaSlotAccelerator::run(const Task& task, const AppDescriptor& 
                 message = ctx->message;
             }
             if (!ran_hw) {
+                log_debug("fft task fallback to CPU path (id=" + std::to_string(task.id) + ")");
                 ok = run_fft_operation(*ctx);
                 message = ctx->message + " (cpu fallback)";
             }
         } else {
+            log_debug("fft task missing execution context (id=" + std::to_string(task.id) + ")");
             ok = false;
             message = "fft: missing execution context";
         }
@@ -515,6 +522,7 @@ unsigned FpgaSlotAccelerator::slot_id() const {
 }
 
 bool FpgaSlotAccelerator::load_bitstream(const std::string& path) {
+    log_debug("load_bitstream start path=" + path);
     if (path.empty()) {
         log("No bitstream path provided; skipping load");
         return true;
@@ -539,6 +547,11 @@ bool FpgaSlotAccelerator::load_bitstream(const std::string& path) {
 
 void FpgaSlotAccelerator::log(const std::string& msg) const {
     std::cout << "[" << name() << "] " << msg << "\n";
+}
+
+void FpgaSlotAccelerator::log_debug(const std::string& msg) const {
+    if (!opts_.debug_logging) return;
+    std::cout << "[" << name() << "] [debug] " << msg << "\n";
 }
 
 std::unique_ptr<Accelerator> make_cpu_mock(unsigned id) {
