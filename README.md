@@ -28,6 +28,32 @@
 
 ## Bitstream placeholding
 
-- `bitstreams/static_wrapper.bit` now comes from the `fft_fir_reconfigurable` top-level run (`fft_fir_reconfigurable.runs/impl_1/top_reconfig_wrapper.bit`), so it contains the actual shell used by the overlay.
-- `bitstreams/fft_partial.bit` is no longer a dummy—it is the FFT partial produced by that same Vivado project (`fft_fir_reconfigurable.runs/impl_1/top_reconfig_i_reconfiguable_region_reconfiguable_region_1_inst_0_partial.bit`).
-- `bitstreams/zip_partial.bit` and `bitstreams/cpu_partial.bit` are still placeholders; replace them with their respective Vitis partial images when those overlays are ready and point `--bitstream-dir` at the directory that contains them.
+- `bitstreams/static_wrapper.bit` comes from the `fft_fir_reconfigurable` top-level run (`fft_fir_reconfigurable.runs/impl_1/top_reconfig_wrapper.bit`) and must be converted to a `.bin` file before loading it with the FPGA manager.
+- `bitstreams/fft_partial.bit` is the FFT partial produced by that same Vivado project (`fft_fir_reconfigurable.runs/impl_1/top_reconfig_i_reconfiguable_region_reconfiguable_region_1_inst_0_partial.bit`) and likewise needs a `.bin` conversion.
+- `bitstreams/zip_partial.bit` and `bitstreams/cpu_partial.bit` remain placeholders; replace them with the real partial images and regenerate their `.bin` counterparts once the overlays are ready.
+
+## Preparing bitstreams for fpga_manager
+
+The Xilinx fpga_manager driver only accepts byte-swapped `.bin` images that expose the raw configuration data without the `.bit` header. Use the helper script to generate the `.bin` files (and place them where the driver looks, typically `/lib/firmware/bitstreams/`):
+
+```bash
+./scripts/prepare_bitstreams.py \
+  bitstreams/static_wrapper.bit \
+  bitstreams/fft_partial.bit \
+  --dst-dir /lib/firmware/bitstreams --force
+```
+
+After running the script, point the scheduler at the converted files:
+
+```bash
+sudo ./build/sched_runner --app-lib=build/libradar_correlator_app.so \
+  --backend=fpga \
+  --bitstream-dir=/lib/firmware/bitstreams \
+  --static-bitstream=/lib/firmware/bitstreams/static_wrapper.bin \
+  --fpga-real \
+  --fpga-manager=/sys/class/fpga_manager/fpga0/firmware \
+  --overlay=fft:1 --overlay=fir:1 \
+  --fpga-debug -- --input=input
+```
+
+> Tip: You need write access to `/lib/firmware/bitstreams/`. Run the script with `sudo` when targeting that directory, or use `--dst-dir` to stage the `.bin` files somewhere else first.

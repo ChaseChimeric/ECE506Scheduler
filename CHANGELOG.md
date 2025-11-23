@@ -61,6 +61,11 @@ Chronological summary of the major edits, experiments, and diagnostics performed
 - **Plan**: Add kernel-side logging or ioctls in `axi_dma_map` to dump those registers when `FpgaSlotAccelerator` starts a transfer. Direct `dd` reads proved unreliable (crashed when the block wasn’t configured).
 - **Status**: Pending implementation. Once in place, we’ll know if the DMA is truly frozen or if the PL design still needs clock/reset wiring fixes.
 
+## 11. Add bitstream preparation script (Dec 2024)
+- **Change**: Created `scripts/prepare_bitstreams.py` to strip the `.bit` headers, byte-swap the payload into `.bin` images, and drop them into `/lib/firmware/bitstreams/`.
+- **Reason**: The fpga_manager driver rejects raw `.bit` files (“Invalid bitstream, could not find a sync word…”). It expects headerless, byte-swapped `.bin` files.
+- **Status**: Run the script (with sudo when targeting `/lib/firmware`) before launching `sched_runner`, and point `--static-bitstream`/`--bitstream-dir` at the generated `.bin` files.
+
 ---
 
 ### Environment Variables / Flags
