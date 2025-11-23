@@ -325,6 +325,14 @@ public:
             };
             clear_status(true);
             clear_status(false);
+            {
+                std::ostringstream msg;
+                msg << "transfer start src=0x" << std::hex << src_phys
+                    << " dst=0x" << dst_phys << " bytes=0x" << bytes
+                    << std::dec;
+                debug_log(msg.str());
+            }
+            dump_regs("after reset");
 
             write_reg(S2MM_DMACR, kDmaCrRunStop | kDmaCrIoC | kDmaCrErr);
             write_reg(S2MM_DA, static_cast<uint32_t>(dst_phys & 0xFFFFFFFF));
@@ -335,17 +343,21 @@ public:
             write_reg(MM2S_SA, static_cast<uint32_t>(src_phys & 0xFFFFFFFF));
             write_reg(MM2S_SA_MSB, static_cast<uint32_t>((src_phys >> 32) & 0xFFFFFFFF));
             write_reg(MM2S_LENGTH, static_cast<uint32_t>(bytes));
+            dump_regs("after program");
 
             if (!wait_for_idle(true)) {
+                dump_regs("mm2s timeout");
                 std::cerr << "[axi-dma] mm2s timeout status=0x" << std::hex << read_reg(MM2S_DMASR)
                           << std::dec << "\n";
                 return false;
             }
             if (!wait_for_idle(false)) {
+                dump_regs("s2mm timeout");
                 std::cerr << "[axi-dma] s2mm timeout status=0x" << std::hex << read_reg(S2MM_DMASR)
                           << std::dec << "\n";
                 return false;
             }
+            dump_regs("transfer complete");
 
             auto status_mm2s = read_reg(MM2S_DMASR);
             auto status_s2mm = read_reg(S2MM_DMASR);
@@ -438,6 +450,32 @@ private:
             return;
         }
         regs_[offset / sizeof(uint32_t)] = value;
+    }
+
+    void debug_log(const std::string& msg) const {
+        if (debug_) {
+            std::cout << "[axi-dma] [debug] " << msg << "\n";
+        }
+    }
+
+    void dump_regs(const char* stage) const {
+        if (!debug_) return;
+        uint32_t mm2s_cr = read_reg(MM2S_DMACR);
+        uint32_t mm2s_sr = read_reg(MM2S_DMASR);
+        uint32_t s2mm_cr = read_reg(S2MM_DMACR);
+        uint32_t s2mm_sr = read_reg(S2MM_DMASR);
+        uint32_t mm2s_len = read_reg(MM2S_LENGTH);
+        uint32_t s2mm_len = read_reg(S2MM_LENGTH);
+        std::ostringstream oss;
+        oss << stage
+            << ": mm2s_cr=0x" << std::hex << mm2s_cr
+            << " mm2s_sr=0x" << mm2s_sr
+            << " s2mm_cr=0x" << s2mm_cr
+            << " s2mm_sr=0x" << s2mm_sr
+            << " mm2s_len=0x" << mm2s_len
+            << " s2mm_len=0x" << s2mm_len
+            << std::dec;
+        debug_log(oss.str());
     }
 
     bool use_device_{false};
