@@ -1,0 +1,1 @@
+savedcmd_/home/vitis/kernel-modules/axi_dma_map/axi_dma_map.ko := arm-linux-gnueabihf-ld -r -EL -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T scripts/module.lds -o /home/vitis/kernel-modules/axi_dma_map/axi_dma_map.ko /home/vitis/kernel-modules/axi_dma_map/axi_dma_map.o /home/vitis/kernel-modules/axi_dma_map/axi_dma_map.mod.o;  true

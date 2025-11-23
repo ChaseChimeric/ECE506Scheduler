@@ -1,0 +1,1 @@
+savedcmd_/home/vitis/kernel-modules/axi_dma_map/axi_dma_map.mod := printf '%s\n'   axi_dma_map.o | awk '!x[$$0]++ { print("/home/vitis/kernel-modules/axi_dma_map/"$$0) }' > /home/vitis/kernel-modules/axi_dma_map/axi_dma_map.mod

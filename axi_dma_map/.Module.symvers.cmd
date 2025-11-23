@@ -1,0 +1,1 @@
+savedcmd_/home/vitis/kernel-modules/axi_dma_map/Module.symvers :=  scripts/mod/modpost -M -m       -o /home/vitis/kernel-modules/axi_dma_map/Module.symvers -T /home/vitis/kernel-modules/axi_dma_map/modules.order -i Module.symvers -e 
