@@ -24,6 +24,9 @@ void print_usage(const char* prog) {
               << "[--preload-threshold=N] -- [app args...]\n";
     std::cout << "  --csv-report          emit task lines as CSV (id,ok,msg,time_ns)\n";
     std::cout << "  --fpga-debug          enable verbose logging inside the FPGA accelerators\n";
+    std::cout << "  --fpga-pr-gpio=N      GPIO number that gates the PR region (asserted during reconfig)\n";
+    std::cout << "  --fpga-pr-gpio-active-low  Treat the PR GPIO as active-low (default active-high)\n";
+    std::cout << "  --fpga-pr-gpio-delay-ms=N  Delay after toggling the PR GPIO (default 5ms)\n";
 }
 
 BackendMode parse_backend(const std::string& value) {
@@ -68,6 +71,9 @@ int main(int argc, char** argv) {
     std::string fpga_manager = "/sys/class/fpga_manager/fpga0/firmware";
     bool fpga_real = false;
     bool fpga_debug = false;
+    int fpga_pr_gpio = -1;
+    bool fpga_pr_gpio_active_low = false;
+    unsigned fpga_pr_gpio_delay_ms = 5;
     std::vector<OverlaySpec> overlays;
 
     int app_arg_start = argc;
@@ -119,6 +125,18 @@ int main(int argc, char** argv) {
         }
         if (arg == "--fpga-debug") {
             fpga_debug = true;
+            continue;
+        }
+        if (arg.rfind("--fpga-pr-gpio=", 0) == 0) {
+            fpga_pr_gpio = static_cast<int>(parse_unsigned(arg.substr(sizeof("--fpga-pr-gpio=") - 1), 0));
+            continue;
+        }
+        if (arg == "--fpga-pr-gpio-active-low") {
+            fpga_pr_gpio_active_low = true;
+            continue;
+        }
+        if (arg.rfind("--fpga-pr-gpio-delay-ms=", 0) == 0) {
+            fpga_pr_gpio_delay_ms = parse_unsigned(arg.substr(sizeof("--fpga-pr-gpio-delay-ms=") - 1), fpga_pr_gpio_delay_ms);
             continue;
         }
         if (arg.rfind("--overlay=", 0) == 0) {
@@ -196,6 +214,9 @@ int main(int argc, char** argv) {
             FpgaSlotOptions opts{fpga_manager, !fpga_real};
             opts.static_bitstream = static_bitstream;
             opts.debug_logging = fpga_debug;
+            opts.pr_gpio_number = fpga_pr_gpio;
+            opts.pr_gpio_active_low = fpga_pr_gpio_active_low;
+            opts.pr_gpio_delay_ms = fpga_pr_gpio_delay_ms;
             auto slot = make_fpga_slot(next_slot_id++, opts);
             slot->prepare_static();
             slot->ensure_app_loaded(entry.desc);

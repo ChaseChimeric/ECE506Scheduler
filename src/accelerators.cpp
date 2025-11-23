@@ -12,6 +12,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -755,6 +756,20 @@ bool FpgaSlotAccelerator::load_bitstream(const std::string& path) {
         log("Mock loading " + path);
         return true;
     }
+    struct DecoupleGuard {
+        FpgaSlotAccelerator* slot;
+        bool engaged{false};
+        ~DecoupleGuard() {
+            if (slot && engaged) slot->set_decouple_gpio(false);
+        }
+    } guard{this, false};
+    if (has_pr_gpio()) {
+        if (!set_decouple_gpio(true)) {
+            log("Failed to assert PR decouple GPIO");
+            return false;
+        }
+        guard.engaged = true;
+    }
     std::ofstream ofs(opts_.manager_path);
     if (!ofs) {
         log("Unable to open FPGA manager at " + opts_.manager_path);
@@ -766,6 +781,69 @@ bool FpgaSlotAccelerator::load_bitstream(const std::string& path) {
         return false;
     }
     log("Requested reconfiguration " + path);
+    return true;
+}
+
+bool FpgaSlotAccelerator::ensure_pr_gpio_ready() {
+    if (!has_pr_gpio()) return true;
+    if (pr_gpio_ready_) return true;
+    namespace fs = std::filesystem;
+    std::string gpio_name = "gpio" + std::to_string(opts_.pr_gpio_number);
+    fs::path gpio_dir = fs::path("/sys/class/gpio") / gpio_name;
+    if (!fs::exists(gpio_dir)) {
+        std::ofstream export_file("/sys/class/gpio/export");
+        if (!export_file) {
+            log("Unable to export GPIO" + std::to_string(opts_.pr_gpio_number));
+            return false;
+        }
+        export_file << opts_.pr_gpio_number << "\n";
+    }
+    for (int i = 0; i < 50 && !fs::exists(gpio_dir); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (!fs::exists(gpio_dir)) {
+        log("GPIO" + std::to_string(opts_.pr_gpio_number) + " not available after export");
+        return false;
+    }
+    std::ofstream dir_file(gpio_dir / "direction");
+    if (!dir_file) {
+        log("Failed to set direction for GPIO" + std::to_string(opts_.pr_gpio_number));
+        return false;
+    }
+    dir_file << "out\n";
+
+    std::ofstream active_low_file(gpio_dir / "active_low");
+    if (active_low_file) {
+        active_low_file << (opts_.pr_gpio_active_low ? "1\n" : "0\n");
+    }
+
+    pr_gpio_value_path_ = (gpio_dir / "value").string();
+    pr_gpio_ready_ = true;
+    log_debug("PR decouple GPIO ready: " + pr_gpio_value_path_);
+    return true;
+}
+
+bool FpgaSlotAccelerator::set_decouple_gpio(bool asserted) {
+    if (!has_pr_gpio()) return true;
+    if (!ensure_pr_gpio_ready()) return false;
+    std::ofstream value_file(pr_gpio_value_path_);
+    if (!value_file) {
+        log("Failed to open " + pr_gpio_value_path_ + " for GPIO write");
+        return false;
+    }
+    int level = asserted ? 1 : 0;
+    if (opts_.pr_gpio_active_low) level = asserted ? 0 : 1;
+    value_file << level << "\n";
+    if (!value_file.good()) {
+        log("Failed to write GPIO value for " + std::to_string(opts_.pr_gpio_number));
+        return false;
+    }
+    log_debug(std::string("PR decouple GPIO ")
+                  + std::to_string(opts_.pr_gpio_number)
+                  + (asserted ? " asserted" : " released"));
+    if (opts_.pr_gpio_delay_ms > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(opts_.pr_gpio_delay_ms));
+    }
     return true;
 }
 

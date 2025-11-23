@@ -15,6 +15,7 @@
 - `--bitstream-dir=DIR` directory plugins use to resolve <app>_partial.bit.
 - `--fpga-manager=PATH` sysfs path to write partial bitstreams (defaults to /sys/class/fpga_manager/fpga0/firmware).
 - `--fpga-real/--fpga-mock` whether FpgaSlotAccelerator actually writes to the manager or stays mock.
+- `--fpga-pr-gpio=N` assert GPIO `N` during static/partial bitstream loads (decouples the PR region). Add `--fpga-pr-gpio-active-low` if the GPIO is active-low, and use `--fpga-pr-gpio-delay-ms=NUM` to control how long we wait after each toggle (default 5 ms).
 - everything after -- is passed verbatim to the plugin as its own arguments (e.g., --input=...).
 
 ## DASH plugin flags (libdemo_dash_app.so)

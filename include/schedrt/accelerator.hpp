@@ -29,6 +29,9 @@ struct FpgaSlotOptions {
     bool mock_mode = true;
     std::string static_bitstream;
     bool debug_logging = false;
+    int pr_gpio_number = -1;
+    bool pr_gpio_active_low = false;
+    unsigned pr_gpio_delay_ms = 5;
 };
 
 class FpgaSlotAccelerator : public Accelerator {
@@ -45,6 +48,9 @@ public:
     unsigned slot_id() const;
 private:
     bool load_bitstream(const std::string& path);
+    bool ensure_pr_gpio_ready();
+    bool set_decouple_gpio(bool asserted);
+    bool has_pr_gpio() const { return opts_.pr_gpio_number >= 0; }
     void log(const std::string& msg) const;
     void log_debug(const std::string& msg) const;
 
@@ -56,6 +62,8 @@ private:
     ResourceKind current_kind_{ResourceKind::CPU};
     bool configured_{false};
     bool static_loaded_{false};
+    bool pr_gpio_ready_{false};
+    std::string pr_gpio_value_path_;
 };
 
 /// Factory helpers (implemented in accelerators.cpp)

@@ -66,6 +66,11 @@ Chronological summary of the major edits, experiments, and diagnostics performed
 - **Reason**: The fpga_manager driver rejects raw `.bit` files (“Invalid bitstream, could not find a sync word…”). It expects headerless, byte-swapped `.bin` files.
 - **Status**: Run the script (with sudo when targeting `/lib/firmware`) before launching `sched_runner`, and point `--static-bitstream`/`--bitstream-dir` at the generated `.bin` files.
 
+## 12. Assert PR decouple GPIO during reconfiguration (Dec 2024)
+- **Change**: Added `--fpga-pr-gpio`, `--fpga-pr-gpio-active-low`, and `--fpga-pr-gpio-delay-ms` flags to `sched_runner`. `FpgaSlotAccelerator` now exports the requested GPIO, drives it high (or low, depending on polarity) before writing the FPGA manager, and releases it afterward.
+- **Reason**: The partial reconfig flow on the Zynq shell expects the PS to decouple/reset the reconfigurable partition during bitstream loads. Without asserting that GPIO, the PR region stayed held in reset and the DMA never saw clocks.
+- **Status**: Configure the correct GPIO number via the new flags and rerun `sched_runner`. Logs indicate when the decouple line toggles.
+
 ---
 
 ### Environment Variables / Flags
