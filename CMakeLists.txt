@@ -49,6 +49,10 @@ add_executable(sched_runner apps/sched_runner.cpp)
 target_include_directories(sched_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(sched_runner PRIVATE schedrt dl)
 
+add_executable(fpga_pr_tester apps/fpga_pr_tester.cpp)
+target_include_directories(fpga_pr_tester PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(fpga_pr_tester PRIVATE schedrt)
+
 add_library(demo_dash_app SHARED apps/demo_dash.cpp)
 target_include_directories(demo_dash_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(demo_dash_app PRIVATE schedrt)
