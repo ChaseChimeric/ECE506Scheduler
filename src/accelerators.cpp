@@ -5,15 +5,19 @@
 #include <chrono>
 #include <cmath>
 #include <complex>
+#include <csetjmp>
+#include <csignal>
 #include <cstdlib>
 #include <cstdint>
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -23,6 +27,88 @@
 #include <zlib.h>
 
 namespace {
+class SigbusScope;
+
+thread_local SigbusScope* g_current_sigbus_scope = nullptr;
+std::once_flag g_sigbus_once;
+struct sigaction g_prev_sigbus{};
+bool g_prev_sigbus_valid = false;
+
+void sigbus_dispatch(int sig, siginfo_t* info, void* uctx);
+
+void ensure_sigbus_handler() {
+    std::call_once(g_sigbus_once, [] {
+        struct sigaction act{};
+        act.sa_sigaction = sigbus_dispatch;
+        sigemptyset(&act.sa_mask);
+        act.sa_flags = SA_SIGINFO;
+        if (sigaction(SIGBUS, &act, &g_prev_sigbus) == 0) {
+            g_prev_sigbus_valid = true;
+        } else {
+            std::perror("[axi-dma] sigaction(SIGBUS) failed");
+        }
+    });
+}
+
+class SigbusScope {
+public:
+    explicit SigbusScope(std::string desc) : desc_(std::move(desc)) {}
+
+    template <typename Fn>
+    bool run(Fn&& fn) {
+        ensure_sigbus_handler();
+        g_current_sigbus_scope = this;
+        if (sigsetjmp(env_, 1) != 0) {
+            g_current_sigbus_scope = nullptr;
+            return false;
+        }
+        bool ok = fn();
+        g_current_sigbus_scope = nullptr;
+        return ok;
+    }
+
+    void handle(siginfo_t* info) {
+        std::cerr << "[axi-dma] SIGBUS during " << desc_;
+        if (info && info->si_addr) {
+            std::cerr << " (bad addr=0x" << std::hex
+                      << reinterpret_cast<std::uintptr_t>(info->si_addr)
+                      << std::dec << ")";
+        }
+        std::cerr << "\n";
+        siglongjmp(env_, 1);
+    }
+
+private:
+    sigjmp_buf env_{};
+    std::string desc_;
+};
+
+void sigbus_dispatch(int sig, siginfo_t* info, void* uctx) {
+    if (g_current_sigbus_scope) {
+        g_current_sigbus_scope->handle(info);
+        return;
+    }
+    if (g_prev_sigbus_valid) {
+        if (g_prev_sigbus.sa_flags & SA_SIGINFO) {
+            if (g_prev_sigbus.sa_sigaction) {
+                g_prev_sigbus.sa_sigaction(sig, info, uctx);
+                return;
+            }
+        } else if (g_prev_sigbus.sa_handler == SIG_IGN) {
+            return;
+        } else if (g_prev_sigbus.sa_handler == SIG_DFL) {
+            signal(SIGBUS, SIG_DFL);
+            raise(SIGBUS);
+            return;
+        } else if (g_prev_sigbus.sa_handler) {
+            g_prev_sigbus.sa_handler(sig);
+            return;
+        }
+    }
+    signal(SIGBUS, SIG_DFL);
+    raise(SIGBUS);
+}
+
 template <typename T>
 T* context_from_task(const schedrt::Task& task, const char* key) {
     auto it = task.params.find(key);
@@ -164,92 +250,126 @@ public:
     AxiDmaController(uintptr_t base_phys, size_t span_bytes, bool debug_log)
         : base_phys_(base_phys), span_(span_bytes), debug_(debug_log) {}
 
-    ~AxiDmaController() {
-        if (regs_) munmap(const_cast<uint32_t*>(regs_), span_);
-        if (mem_fd_ >= 0) close(mem_fd_);
-    }
+    ~AxiDmaController() { cleanup_mapping(); }
 
     bool init() {
-        if (debug_) {
-            std::cout << "[axi-dma] opening /dev/mem\n";
+        std::ostringstream desc;
+        desc << "axi-dma init base=0x" << std::hex << base_phys_
+             << " span=0x" << span_;
+        SigbusScope guard(desc.str());
+        bool ok = guard.run([&]() -> bool {
+            if (debug_) {
+                std::cout << "[axi-dma] opening /dev/mem\n";
+            }
+            mem_fd_ = ::open("/dev/mem", O_RDWR | O_SYNC);
+            if (mem_fd_ < 0) {
+                std::cerr << "[axi-dma] unable to open /dev/mem: " << strerror(errno) << "\n";
+                return false;
+            }
+            if (debug_) {
+                std::cout << "[axi-dma] mapping phys=0x" << std::hex << base_phys_
+                          << " span=0x" << span_ << std::dec << "\n";
+            }
+            void* mapped = mmap(nullptr, span_, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd_, base_phys_);
+            if (mapped == MAP_FAILED) {
+                std::cerr << "[axi-dma] mmap failed: " << strerror(errno) << "\n";
+                close(mem_fd_);
+                mem_fd_ = -1;
+                return false;
+            }
+            regs_ = static_cast<volatile uint32_t*>(mapped);
+            if (debug_) {
+                std::cout << "[axi-dma] mapped control region, issuing soft reset\n";
+            }
+            reset_channel(true);
+            reset_channel(false);
+            if (debug_) {
+                std::cout << "[axi-dma] reset complete\n";
+            }
+            ready_ = true;
+            return true;
+        });
+        if (!ok) {
+            cleanup_mapping();
+            std::cerr << "[axi-dma] init aborted due to bus fault; verify --dma-base or the static shell layout\n";
         }
-        mem_fd_ = ::open("/dev/mem", O_RDWR | O_SYNC);
-        if (mem_fd_ < 0) {
-            std::cerr << "[axi-dma] unable to open /dev/mem: " << strerror(errno) << "\n";
-            return false;
-        }
-        if (debug_) {
-            std::cout << "[axi-dma] mapping phys=0x" << std::hex << base_phys_
-                      << " span=0x" << span_ << std::dec << "\n";
-        }
-        void* mapped = mmap(nullptr, span_, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd_, base_phys_);
-        if (mapped == MAP_FAILED) {
-            std::cerr << "[axi-dma] mmap failed: " << strerror(errno) << "\n";
-            close(mem_fd_);
-            mem_fd_ = -1;
-            return false;
-        }
-        regs_ = static_cast<volatile uint32_t*>(mapped);
-        if (debug_) {
-            std::cout << "[axi-dma] mapped control region, issuing soft reset\n";
-        }
-        reset_channel(true);
-        reset_channel(false);
-        if (debug_) {
-            std::cout << "[axi-dma] reset complete\n";
-        }
-        ready_ = true;
-        return true;
+        return ok;
     }
 
     bool ready() const { return ready_; }
 
     bool transfer(uint64_t src_phys, uint64_t dst_phys, size_t bytes) {
         if (!ready_ || bytes == 0) return ready_;
-        constexpr uint32_t kDmaCrRunStop = 0x1;
-        constexpr uint32_t kDmaCrIoC = 0x10;
-        constexpr uint32_t kDmaCrErr = 0x40;
-        constexpr uint32_t kStatusErrMask = (1u << 4) | (1u << 5) | (1u << 6) | (1u << 7) |
-                                            (1u << 12) | (1u << 13) | (1u << 14);
+        std::ostringstream desc;
+        desc << "axi-dma transfer base=0x" << std::hex << base_phys_
+             << " bytes=0x" << bytes;
+        SigbusScope guard(desc.str());
+        bool ok = guard.run([&]() -> bool {
+            constexpr uint32_t kDmaCrRunStop = 0x1;
+            constexpr uint32_t kDmaCrIoC = 0x10;
+            constexpr uint32_t kDmaCrErr = 0x40;
+            constexpr uint32_t kStatusErrMask = (1u << 4) | (1u << 5) | (1u << 6) | (1u << 7) |
+                                                (1u << 12) | (1u << 13) | (1u << 14);
 
-        auto clear_status = [&](bool s2mm) {
-            write_reg(s2mm ? S2MM_DMASR : MM2S_DMASR, 0xFFFFFFFF);
-        };
-        clear_status(true);
-        clear_status(false);
+            auto clear_status = [&](bool s2mm) {
+                write_reg(s2mm ? S2MM_DMASR : MM2S_DMASR, 0xFFFFFFFF);
+            };
+            clear_status(true);
+            clear_status(false);
 
-        write_reg(S2MM_DMACR, kDmaCrRunStop | kDmaCrIoC | kDmaCrErr);
-        write_reg(S2MM_DA, static_cast<uint32_t>(dst_phys & 0xFFFFFFFF));
-        write_reg(S2MM_DA_MSB, static_cast<uint32_t>((dst_phys >> 32) & 0xFFFFFFFF));
-        write_reg(S2MM_LENGTH, static_cast<uint32_t>(bytes));
+            write_reg(S2MM_DMACR, kDmaCrRunStop | kDmaCrIoC | kDmaCrErr);
+            write_reg(S2MM_DA, static_cast<uint32_t>(dst_phys & 0xFFFFFFFF));
+            write_reg(S2MM_DA_MSB, static_cast<uint32_t>((dst_phys >> 32) & 0xFFFFFFFF));
+            write_reg(S2MM_LENGTH, static_cast<uint32_t>(bytes));
 
-        write_reg(MM2S_DMACR, kDmaCrRunStop | kDmaCrIoC | kDmaCrErr);
-        write_reg(MM2S_SA, static_cast<uint32_t>(src_phys & 0xFFFFFFFF));
-        write_reg(MM2S_SA_MSB, static_cast<uint32_t>((src_phys >> 32) & 0xFFFFFFFF));
-        write_reg(MM2S_LENGTH, static_cast<uint32_t>(bytes));
+            write_reg(MM2S_DMACR, kDmaCrRunStop | kDmaCrIoC | kDmaCrErr);
+            write_reg(MM2S_SA, static_cast<uint32_t>(src_phys & 0xFFFFFFFF));
+            write_reg(MM2S_SA_MSB, static_cast<uint32_t>((src_phys >> 32) & 0xFFFFFFFF));
+            write_reg(MM2S_LENGTH, static_cast<uint32_t>(bytes));
 
-        if (!wait_for_idle(true)) {
-            std::cerr << "[axi-dma] mm2s timeout status=0x" << std::hex << read_reg(MM2S_DMASR)
-                      << std::dec << "\n";
-            return false;
+            if (!wait_for_idle(true)) {
+                std::cerr << "[axi-dma] mm2s timeout status=0x" << std::hex << read_reg(MM2S_DMASR)
+                          << std::dec << "\n";
+                return false;
+            }
+            if (!wait_for_idle(false)) {
+                std::cerr << "[axi-dma] s2mm timeout status=0x" << std::hex << read_reg(S2MM_DMASR)
+                          << std::dec << "\n";
+                return false;
+            }
+
+            auto status_mm2s = read_reg(MM2S_DMASR);
+            auto status_s2mm = read_reg(S2MM_DMASR);
+            if ((status_mm2s & kStatusErrMask) || (status_s2mm & kStatusErrMask)) {
+                std::cerr << "[axi-dma] error status mm2s=0x" << std::hex << status_mm2s
+                          << " s2mm=0x" << status_s2mm << std::dec << "\n";
+                return false;
+            }
+            return true;
+        });
+        if (!ok) {
+            std::cerr << "[axi-dma] transfer aborted due to bus fault "
+                      << "(src_phys=0x" << std::hex << src_phys
+                      << ", dst_phys=0x" << dst_phys << std::dec
+                      << ", bytes=" << bytes << ")\n";
+            ready_ = false;
         }
-        if (!wait_for_idle(false)) {
-            std::cerr << "[axi-dma] s2mm timeout status=0x" << std::hex << read_reg(S2MM_DMASR)
-                      << std::dec << "\n";
-            return false;
-        }
-
-        auto status_mm2s = read_reg(MM2S_DMASR);
-        auto status_s2mm = read_reg(S2MM_DMASR);
-        if ((status_mm2s & kStatusErrMask) || (status_s2mm & kStatusErrMask)) {
-            std::cerr << "[axi-dma] error status mm2s=0x" << std::hex << status_mm2s
-                      << " s2mm=0x" << status_s2mm << std::dec << "\n";
-            return false;
-        }
-        return true;
+        return ok;
     }
 
 private:
+    void cleanup_mapping() {
+        if (regs_) {
+            munmap(const_cast<uint32_t*>(regs_), span_);
+            regs_ = nullptr;
+        }
+        if (mem_fd_ >= 0) {
+            close(mem_fd_);
+            mem_fd_ = -1;
+        }
+        ready_ = false;
+    }
+
     void reset_channel(bool s2mm) {
         constexpr uint32_t kResetBit = 0x4;
         write_reg(s2mm ? S2MM_DMACR : MM2S_DMACR, kResetBit);
