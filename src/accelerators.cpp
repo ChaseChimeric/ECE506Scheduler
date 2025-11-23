@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -297,6 +298,8 @@ public:
             std::cerr << "[fft-hw] missing udmabuf (" << udmabuf_name << ")\n";
             return false;
         }
+        std::cout << "[fft-hw] udmabuf '" << udmabuf_name << "' size=" << buffer_.size()
+                  << " bytes phys=0x" << std::hex << buffer_.phys() << std::dec << "\n";
 
         // AXI DMA control registers live at 0x40410000 in the top_reconfig design.
         uintptr_t dma_base = 0x40410000;
@@ -307,7 +310,10 @@ public:
                 std::cerr << "[fft-hw] invalid SCHEDRT_DMA_BASE value\n";
             }
         }
-        dma_ = std::make_unique<AxiDmaController>(dma_base, 0x10000);
+        constexpr size_t kDmaRegSpan = 0x10000;
+        std::cout << "[fft-hw] AXI DMA regs phys=0x" << std::hex << dma_base
+                  << " span=0x" << kDmaRegSpan << std::dec << "\n";
+        dma_ = std::make_unique<AxiDmaController>(dma_base, kDmaRegSpan);
         if (!dma_->init()) {
             std::cerr << "[fft-hw] unable to initialize AXI DMA\n";
             return false;
