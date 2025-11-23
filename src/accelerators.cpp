@@ -253,6 +253,15 @@ public:
     ~AxiDmaController() { cleanup_mapping(); }
 
     bool init() {
+        const char* custom_dev = std::getenv("SCHEDRT_DMA_DEVICE");
+        if (custom_dev) device_path_ = custom_dev;
+        if (try_open_device()) {
+            if (debug_) {
+                std::cout << "[axi-dma] using char device " << device_path_ << "\n";
+            }
+            ready_ = true;
+            return true;
+        }
         std::ostringstream desc;
         desc << "axi-dma init base=0x" << std::hex << base_phys_
              << " span=0x" << span_;
@@ -358,14 +367,30 @@ public:
     }
 
 private:
-    void cleanup_mapping() {
-        if (regs_) {
-            munmap(const_cast<uint32_t*>(regs_), span_);
-            regs_ = nullptr;
+    bool try_open_device() {
+        if (device_path_.empty()) device_path_ = "/dev/axi_dma_regs";
+        fd_ = ::open(device_path_.c_str(), O_RDWR);
+        if (fd_ < 0) {
+            fd_ = -1;
+            return false;
         }
-        if (mem_fd_ >= 0) {
-            close(mem_fd_);
-            mem_fd_ = -1;
+        use_device_ = true;
+        return true;
+    }
+
+    void cleanup_mapping() {
+        if (use_device_) {
+            if (fd_ >= 0) close(fd_);
+            fd_ = -1;
+        } else {
+            if (regs_) {
+                munmap(const_cast<uint32_t*>(regs_), span_);
+                regs_ = nullptr;
+            }
+            if (mem_fd_ >= 0) {
+                close(mem_fd_);
+                mem_fd_ = -1;
+            }
         }
         ready_ = false;
     }
@@ -395,13 +420,29 @@ private:
     }
 
     uint32_t read_reg(off_t offset) const {
+        if (use_device_) {
+            uint32_t value = 0;
+            if (pread(fd_, &value, sizeof(value), offset) != sizeof(value)) {
+                std::perror("[axi-dma] pread");
+            }
+            return value;
+        }
         return regs_[offset / sizeof(uint32_t)];
     }
 
     void write_reg(off_t offset, uint32_t value) {
+        if (use_device_) {
+            if (pwrite(fd_, &value, sizeof(value), offset) != sizeof(value)) {
+                std::perror("[axi-dma] pwrite");
+            }
+            return;
+        }
         regs_[offset / sizeof(uint32_t)] = value;
     }
 
+    bool use_device_{false};
+    std::string device_path_;
+    int fd_{-1};
     int mem_fd_{-1};
     volatile uint32_t* regs_{nullptr};
     uintptr_t base_phys_{0};
