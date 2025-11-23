@@ -77,8 +77,9 @@ struct ScheduledFFT {
 ScheduledFFT schedule_fft_task(schedrt::Scheduler& sched, float* in_buf, float* out_buf, size_t len, bool inverse) {
     auto ctx = std::make_shared<dash::FftContext>();
     ctx->plan = {static_cast<int>(len), inverse};
-    ctx->in = {in_buf, len * sizeof(float)};
-    ctx->out = {out_buf, len * sizeof(float)};
+    size_t complex_bytes = len * 2 * sizeof(float); // buffers store interleaved real/imag
+    ctx->in = {in_buf, complex_bytes};
+    ctx->out = {out_buf, complex_bytes};
 
     auto task = std::make_shared<schedrt::Task>();
     task->id = g_next_fft_id.fetch_add(1, std::memory_order_relaxed);
