@@ -4,19 +4,28 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cerrno>
 #include <cmath>
+#include <csetjmp>
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fcntl.h>
 #include <iomanip>
 #include <iostream>
+#include <cstring>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <string>
 #include <string_view>
+#include <sstream>
 #include <vector>
 #include <cctype>
+#include <sys/mman.h>
+#include <unistd.h>
 
 using schedrt::AppDescriptor;
 using schedrt::FpgaSlotAccelerator;
@@ -34,6 +43,13 @@ struct OverlaySpec {
 
 enum class FftPattern { Impulse, Sine, Ramp, Random };
 
+struct MmioProbe {
+    std::string label;
+    uintptr_t base = 0;
+    size_t span = 0x1000;
+    std::vector<uint32_t> offsets{0x0, 0x4, 0x8, 0xC};
+};
+
 struct Config {
     std::string fpga_manager = "/sys/class/fpga_manager/fpga0/firmware";
     std::string static_bitstream = "bitstreams/static_wrapper.bit";
@@ -49,6 +65,78 @@ struct Config {
     std::optional<std::string> udmabuf_name;
     std::optional<std::string> dma_base;
     bool dma_debug = false;
+    std::vector<MmioProbe> mmio_probes;
+};
+
+class SigbusGuard {
+public:
+    explicit SigbusGuard(std::string desc) : desc_(std::move(desc)) {}
+
+    template <typename Fn>
+    bool run(Fn&& fn) {
+        install();
+        current_ = this;
+        if (sigsetjmp(env_, 1) != 0) {
+            current_ = nullptr;
+            return false;
+        }
+        bool ok = fn();
+        current_ = nullptr;
+        return ok;
+    }
+
+private:
+    static void install() {
+        std::call_once(flag_, [] {
+            struct sigaction act{};
+            act.sa_sigaction = &SigbusGuard::dispatch;
+            sigemptyset(&act.sa_mask);
+            act.sa_flags = SA_SIGINFO;
+            sigaction(SIGBUS, &act, &prev_);
+            have_prev_ = true;
+        });
+    }
+
+    static void dispatch(int sig, siginfo_t* info, void* ctx) {
+        if (current_) {
+            std::cerr << "[tester] SIGBUS during " << current_->desc_;
+            if (info && info->si_addr) {
+                std::cerr << " (bad addr=0x"
+                          << std::hex << reinterpret_cast<std::uintptr_t>(info->si_addr)
+                          << std::dec << ")";
+            }
+            std::cerr << "\n";
+            siglongjmp(current_->env_, 1);
+            return;
+        }
+        if (have_prev_) {
+            if (prev_.sa_flags & SA_SIGINFO) {
+                if (prev_.sa_sigaction) {
+                    prev_.sa_sigaction(sig, info, ctx);
+                    return;
+                }
+            } else if (prev_.sa_handler == SIG_IGN) {
+                return;
+            } else if (prev_.sa_handler == SIG_DFL) {
+                signal(SIGBUS, SIG_DFL);
+                raise(SIGBUS);
+                return;
+            } else if (prev_.sa_handler) {
+                prev_.sa_handler(sig);
+                return;
+            }
+        }
+        signal(SIGBUS, SIG_DFL);
+        raise(SIGBUS);
+    }
+
+    static inline std::once_flag flag_;
+    static inline struct sigaction prev_{};
+    static inline bool have_prev_{false};
+    static inline SigbusGuard* current_{nullptr};
+
+    sigjmp_buf env_{};
+    std::string desc_;
 };
 
 struct SlotInstance {
@@ -74,6 +162,8 @@ void print_usage(const char* prog) {
               << "  --fft-pattern=impulse|sine|ramp|random\n"
               << "  --fft-inverse                        request inverse FFT mode\n"
               << "  --fft-dump                           dump first few FFT outputs per iteration\n"
+              << "  --mmio-probe=name:base[:span]        dump a set of registers via /dev/mem\n"
+              << "  --mmio-probe-offset=name:offset      add additional offsets for that probe\n"
               << "  --help                               show this message\n";
 }
 
@@ -152,6 +242,34 @@ FftPattern parse_fft_pattern(const std::string& text, FftPattern fallback) {
     if (lower == "ramp") return FftPattern::Ramp;
     if (lower == "random" || lower == "noise") return FftPattern::Random;
     return fallback;
+}
+
+std::optional<MmioProbe> parse_mmio_probe(const std::string& text) {
+    auto parts = split_colon(text);
+    if (parts.size() < 2) return std::nullopt;
+    MmioProbe probe;
+    probe.label = parts[0];
+    try {
+        probe.base = static_cast<uintptr_t>(std::stoull(parts[1], nullptr, 0));
+    } catch (...) {
+        return std::nullopt;
+    }
+    if (parts.size() > 2 && !parts[2].empty()) {
+        try {
+            probe.span = static_cast<size_t>(std::stoull(parts[2], nullptr, 0));
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+    if (probe.span == 0) probe.span = 0x1000;
+    return probe;
+}
+
+MmioProbe* find_probe(std::vector<MmioProbe>& probes, const std::string& label) {
+    for (auto& probe : probes) {
+        if (probe.label == label) return &probe;
+    }
+    return nullptr;
 }
 
 void configure_fft_env(const Config& cfg) {
@@ -311,6 +429,52 @@ bool run_fft_diagnostic(SlotInstance& slot,
     return true;
 }
 
+bool run_mmio_probe(const MmioProbe& probe) {
+    std::ostringstream desc;
+    desc << "mmio probe '" << probe.label << "' base=0x" << std::hex << probe.base;
+    SigbusGuard guard(desc.str());
+    return guard.run([&]() -> bool {
+        int fd = ::open("/dev/mem", O_RDONLY | O_SYNC);
+        if (fd < 0) {
+            std::cerr << "[tester] mmio-probe(" << probe.label << ") failed to open /dev/mem: "
+                      << strerror(errno) << "\n";
+            return false;
+        }
+        void* map = mmap(nullptr, probe.span, PROT_READ, MAP_SHARED, fd, probe.base);
+        if (map == MAP_FAILED) {
+            std::cerr << "[tester] mmio-probe(" << probe.label << ") mmap failed: "
+                      << strerror(errno) << "\n";
+            close(fd);
+            return false;
+        }
+        auto* regs = static_cast<volatile uint32_t*>(map);
+        std::cout << "[tester] MMIO probe '" << probe.label << "' base=0x"
+                  << std::hex << probe.base << " span=0x" << probe.span
+                  << std::dec << "\n";
+        for (uint32_t offset : probe.offsets) {
+            if (offset >= probe.span) {
+                std::cout << "    offset 0x" << std::hex << offset
+                          << " outside span 0x" << probe.span << std::dec << "\n";
+                continue;
+            }
+            uint32_t value = regs[offset / sizeof(uint32_t)];
+            std::cout << "    [0x" << std::hex << offset << "] = 0x"
+                      << value << std::dec << "\n";
+        }
+        munmap(map, probe.span);
+        close(fd);
+        return true;
+    });
+}
+
+bool run_mmio_probes(const Config& cfg) {
+    bool ok = true;
+    for (const auto& probe : cfg.mmio_probes) {
+        if (!run_mmio_probe(probe)) ok = false;
+    }
+    return ok;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -392,6 +556,35 @@ int main(int argc, char** argv) {
             cfg.fft_dump = true;
             continue;
         }
+        if (arg.rfind("--mmio-probe=", 0) == 0) {
+            auto spec = parse_mmio_probe(arg.substr(sizeof("--mmio-probe=") - 1));
+            if (!spec) {
+                std::cerr << "[tester] Failed to parse " << arg << "\n";
+                return 1;
+            }
+            cfg.mmio_probes.push_back(*spec);
+            continue;
+        }
+        if (arg.rfind("--mmio-probe-offset=", 0) == 0) {
+            auto parts = split_colon(arg.substr(sizeof("--mmio-probe-offset=") - 1));
+            if (parts.size() < 2) {
+                std::cerr << "[tester] Failed to parse " << arg << "\n";
+                return 1;
+            }
+            auto* probe = find_probe(cfg.mmio_probes, parts[0]);
+            if (!probe) {
+                std::cerr << "[tester] Unknown mmio probe '" << parts[0] << "'\n";
+                return 1;
+            }
+            try {
+                uint32_t off = static_cast<uint32_t>(std::stoul(parts[1], nullptr, 0));
+                probe->offsets.push_back(off);
+            } catch (...) {
+                std::cerr << "[tester] Invalid offset in " << arg << "\n";
+                return 1;
+            }
+            continue;
+        }
         std::cerr << "[tester] Unknown option: " << arg << "\n";
         print_usage(argv[0]);
         return 1;
@@ -406,6 +599,12 @@ int main(int argc, char** argv) {
     std::vector<SlotInstance> slots;
     if (!load_overlays(overlays, cfg, slots)) {
         return 1;
+    }
+
+    if (!cfg.mmio_probes.empty()) {
+        if (!run_mmio_probes(cfg)) {
+            std::cerr << "[tester] One or more MMIO probes failed\n";
+        }
     }
 
     if (cfg.run_fft) {
