@@ -58,3 +58,17 @@ sudo ./build/sched_runner --app-lib=build/libradar_correlator_app.so \
 ```
 
 > Tip: You need write access to `/lib/firmware/bitstreams/`. Run the script with `sudo` when targeting that directory, or use `--dst-dir` to stage the `.bin` files somewhere else first.
+
+## AXI DMA loopback test utility
+
+Use `axi_dma_test` to validate the DMA path (register access + udmabuf plumbing) independently of the scheduler:
+
+```bash
+cmake --build build --target axi_dma_test
+sudo ./build/axi_dma_test \
+  --device=/dev/axi_dma_regs \
+  --udmabuf=udmabuf0 \
+  --bytes=262144
+```
+
+The tool fills the first half of the udmabuf with a pattern, runs one MM2S→S2MM transfer, and compares the output half. A successful run prints the DMA status registers and `SUCCESS: output matches input`. If the registers never leave idle or return `0xFFFFFFFF`, double-check the DMA base address/clocking in the bitstream or use the `SCHEDRT_DMA_BASE` env var with the scheduler.
