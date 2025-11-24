@@ -35,8 +35,8 @@ MODULE_INFO(retpoline, "Y");
 
 static const struct modversion_info ____versions[]
 __used __section("__versions") = {
-	{ 0xe97c4103, "ioremap" },
 	{ 0x92997ed8, "_printk" },
+	{ 0xe97c4103, "ioremap" },
 	{ 0x8e299a05, "misc_register" },
 	{ 0xefd6cf06, "__aeabi_unwind_cpp_pr0" },
 	{ 0xae353d77, "arm_copy_from_user" },
@@ -45,10 +45,12 @@ __used __section("__versions") = {
 	{ 0xedc03953, "iounmap" },
 	{ 0x51a910c0, "arm_copy_to_user" },
 	{ 0x3ac3bf64, "default_llseek" },
+	{ 0xe0bf23a4, "param_ops_uint" },
+	{ 0xe6e200e6, "param_ops_ulong" },
 	{ 0x6c5bee28, "module_layout" },
 };
 
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "11F40D7D0211759176F6786");
+MODULE_INFO(srcversion, "AA695B86E96AD458B4BE246");

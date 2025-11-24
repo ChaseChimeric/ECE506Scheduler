@@ -1,1 +1,1 @@
-/home/vitis/kernel-modules/axi_dma_map/axi_dma_map.o
+/home/vitis/ECE506Scheduler/axi_dma_map/axi_dma_map.o
