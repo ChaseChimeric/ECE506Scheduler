@@ -85,9 +85,9 @@ Chronological summary of the major edits, experiments, and diagnostics performed
 - **Impact**: Even when fpga_manager loads the bitstreams successfully and the PS toggles the decouple GPIO, the AXI DMA cannot complete transfers because the stream handshake is permanently stalled in hardware. Fixing these RTL issues is required before any software-side changes (scheduler, kernel module) will see a healthy DMA path.
 
 ## 15. Static shell probe utility (Jan 2025)
-- **Change**: Added `apps/fpga_static_probe.cpp` and CMake target `fpga_static_probe`. The tool instantiates a bare `FpgaSlotAccelerator`, calls `prepare_static()`, and exits so you can isolate static-shell load problems without touching any partial overlays.
-- **Reason**: When fpga_manager throws errors immediately after the static shell write, it's hard to tell whether the failure stems from the base image or the subsequent overlay loads. The probe provides a minimal repro for kernel/bitstream debugging (watch `dmesg` while it runs).
-- **Status**: Build with `cmake --build build --target fpga_static_probe` and run with `--fpga-real --static-bitstream=...`. Use `--repeat=N` if you need to hammer the load sequence multiple times in a row.
+- **Change**: Added `apps/fpga_static_probe.cpp` and CMake target `fpga_static_probe`. The tool instantiates a bare `FpgaSlotAccelerator`, calls `prepare_static()`, and optionally runs `/dev/mem` MMIO probes so you can sanity-check AXI register mirrors immediately after the static shell load.
+- **Reason**: When fpga_manager throws errors immediately after the static shell write, it's hard to tell whether the failure stems from the base image or the subsequent overlay loads. The probe provides a minimal repro for kernel/bitstream debugging (watch `dmesg` while it runs) and a quick way to verify that the AXI slot came up.
+- **Status**: Build with `cmake --build build --target fpga_static_probe` and run with `--fpga-real --static-bitstream=...`. Use `--repeat=N` if you need to hammer the load sequence multiple times in a row, and chain `--mmio-probe` / `--mmio-probe-offset` to dump specific registers.
 
 ---
 
