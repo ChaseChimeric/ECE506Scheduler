@@ -208,15 +208,30 @@ private:
             std::cerr << "bitstream " << path << " not found" << "\n";
             return {};
         }
+
         std::error_code ec;
+        auto firmware_root = fs::weakly_canonical(fs::path(firmware_dir_), ec);
+        if (ec) {
+            firmware_root = fs::path(firmware_dir_);
+        }
+        auto src_abs = fs::weakly_canonical(src, ec);
+        if (ec) {
+            src_abs = fs::absolute(src);
+        }
+
+        if (src_abs.string().rfind(firmware_root.string(), 0) == 0) {
+            if (trace_) std::cout << " source already under firmware dir\n";
+            return src_abs.filename().string();
+        }
+
         fs::create_directories(firmware_dir_, ec);
         if (ec) {
             std::cerr << "failed to create firmware dir " << firmware_dir_ << ": " << ec.message() << "\n";
             return {};
         }
         auto name = sanitize(label) + "_" + src.filename().string();
-        fs::path dest = fs::path(firmware_dir_) / name;
-        fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+        fs::path dest = firmware_root / name;
+        fs::copy_file(src_abs, dest, fs::copy_options::overwrite_existing, ec);
         if (ec) {
             std::cerr << "copy to " << dest << " failed: " << ec.message() << "\n";
             return {};
