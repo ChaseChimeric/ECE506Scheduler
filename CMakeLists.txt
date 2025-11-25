@@ -53,6 +53,10 @@ add_executable(fpga_pr_tester apps/fpga_pr_tester.cpp)
 target_include_directories(fpga_pr_tester PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(fpga_pr_tester PRIVATE schedrt)
 
+add_executable(fpga_static_probe apps/fpga_static_probe.cpp)
+target_include_directories(fpga_static_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(fpga_static_probe PRIVATE schedrt)
+
 add_executable(axi_dma_test apps/axi_dma_test.cpp)
 target_link_libraries(axi_dma_test PRIVATE schedrt)
 

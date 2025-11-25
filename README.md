@@ -72,3 +72,19 @@ sudo ./build/axi_dma_test \
 ```
 
 The tool fills the first half of the udmabuf with a pattern, runs one MM2S→S2MM transfer, and compares the output half. A successful run prints the DMA status registers and `SUCCESS: output matches input`. If the registers never leave idle or return `0xFFFFFFFF`, double-check the DMA base address/clocking in the bitstream or use the `SCHEDRT_DMA_BASE` env var with the scheduler.
+
+## Static shell probe utility
+
+When you just need to confirm that the static shell image is accepted by `fpga_manager` (before debugging partials), build the `fpga_static_probe` target:
+
+```bash
+cmake --build build --target fpga_static_probe
+sudo ./build/fpga_static_probe \
+  --static-bitstream=/lib/firmware/bitstreams/static_wrapper.bin \
+  --fpga-manager=/sys/class/fpga_manager/fpga0/firmware \
+  --fpga-real \
+  --fpga-pr-gpio=569 \
+  --fpga-debug
+```
+
+Each attempt runs only `FpgaSlotAccelerator::prepare_static()` so the PS toggles the optional decouple GPIO, writes the static filename into `fpga_manager`, and stops. Watch `dmesg` in another terminal for the corresponding kernel success/error before moving on to partial bitstreams.
