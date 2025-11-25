@@ -210,16 +210,15 @@ private:
         }
 
         std::error_code ec;
-        auto firmware_root = fs::weakly_canonical(fs::path(firmware_dir_), ec);
-        if (ec) {
-            firmware_root = fs::path(firmware_dir_);
-        }
-        auto src_abs = fs::weakly_canonical(src, ec);
-        if (ec) {
-            src_abs = fs::absolute(src);
-        }
+        auto firmware_root = fs::path(firmware_dir_).lexically_normal();
+        auto src_abs = fs::absolute(src).lexically_normal();
 
-        if (src_abs.string().rfind(firmware_root.string(), 0) == 0) {
+        auto firmware_str = firmware_root.string();
+        if (!firmware_str.empty() && firmware_str.back() == '/') firmware_str.pop_back();
+        auto src_str = src_abs.string();
+        if (!src_str.empty() && src_str.back() == '/') src_str.pop_back();
+
+        if (!firmware_str.empty() && src_str.rfind(firmware_str, 0) == 0) {
             if (trace_) std::cout << " source already under firmware dir\n";
             return src_abs.filename().string();
         }
