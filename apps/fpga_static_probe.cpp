@@ -5,6 +5,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <system_error>
 
 namespace {
 
@@ -52,9 +53,16 @@ std::optional<int> parse_int(const std::string& text) {
     }
 }
 
-bool path_exists(const std::string& path) {
+std::optional<std::filesystem::path> resolve_bitstream_host_path(const std::string& request) {
+    namespace fs = std::filesystem;
     std::error_code ec;
-    return std::filesystem::exists(path, ec);
+    fs::path direct(request);
+    if (fs::exists(direct, ec)) return fs::weakly_canonical(direct, ec);
+    if (!direct.is_absolute()) {
+        fs::path fallback = fs::path("/lib/firmware") / direct;
+        if (fs::exists(fallback, ec)) return fs::weakly_canonical(fallback, ec);
+    }
+    return std::nullopt;
 }
 
 } // namespace
@@ -128,9 +136,16 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (opts.static_bitstream.empty() || !path_exists(opts.static_bitstream)) {
-        std::cerr << "[static-probe] Static bitstream not found: " << opts.static_bitstream << "\n";
+    auto host_path = resolve_bitstream_host_path(opts.static_bitstream);
+    if (opts.static_bitstream.empty() || !host_path) {
+        std::cerr << "[static-probe] Static bitstream not found: " << opts.static_bitstream;
+        if (!std::filesystem::path(opts.static_bitstream).is_absolute()) {
+            std::cerr << " (also checked /lib/firmware/" << opts.static_bitstream << ")";
+        }
+        std::cerr << "\n";
         return 1;
+    } else if (opts.fpga_debug) {
+        std::cout << "[static-probe] Using host-visible bitstream at " << host_path->string() << "\n";
     }
 
     schedrt::FpgaSlotOptions slot_opts;
@@ -158,4 +173,3 @@ int main(int argc, char** argv) {
               << "Check 'dmesg' for the corresponding fpga_manager status.\n";
     return 0;
 }
-

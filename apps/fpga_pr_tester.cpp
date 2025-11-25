@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cerrno>
 #include <cmath>
+#include <system_error>
 #include <csetjmp>
 #include <csignal>
 #include <cstdint>
@@ -208,6 +209,18 @@ std::vector<std::string> split_colon(const std::string& spec) {
     return out;
 }
 
+std::optional<std::filesystem::path> resolve_bitstream_host_path(const std::string& request) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path direct(request);
+    if (fs::exists(direct, ec)) return fs::weakly_canonical(direct, ec);
+    if (!direct.is_absolute()) {
+        fs::path fallback = fs::path("/lib/firmware") / direct;
+        if (fs::exists(fallback, ec)) return fs::weakly_canonical(fallback, ec);
+    }
+    return std::nullopt;
+}
+
 std::filesystem::path default_overlay_bitstream(const Config& cfg, const std::string& app) {
     std::filesystem::path base(cfg.bitstream_dir);
     base /= app + "_partial.bit";
@@ -285,9 +298,13 @@ void configure_fft_env(const Config& cfg) {
 }
 
 bool ensure_path_exists(const std::string& label, const std::string& path) {
-    std::error_code ec;
-    if (!std::filesystem::exists(path, ec)) {
-        std::cerr << "[tester] " << label << " missing: " << path << "\n";
+    auto host_path = resolve_bitstream_host_path(path);
+    if (!host_path) {
+        std::cerr << "[tester] " << label << " missing: " << path;
+        if (!std::filesystem::path(path).is_absolute()) {
+            std::cerr << " (also checked /lib/firmware/" << path << ")";
+        }
+        std::cerr << "\n";
         return false;
     }
     return true;
