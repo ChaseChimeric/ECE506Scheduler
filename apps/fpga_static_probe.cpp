@@ -1,5 +1,6 @@
 #include "schedrt/accelerator.hpp"
 
+#include <chrono>
 #include <cerrno>
 #include <csignal>
 #include <csetjmp>
@@ -8,12 +9,14 @@
 #include <cstring>
 #include <filesystem>
 #include <fcntl.h>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <vector>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -29,6 +32,14 @@ struct Options {
     bool pr_gpio_active_low = false;
     unsigned pr_gpio_delay_ms = 5;
     unsigned repetitions = 1;
+    bool load_overlay = false;
+    std::string overlay_label = "fft_passthrough";
+    std::string overlay_bitstream = "bitstreams/fft_passthrough_partial.bin";
+    bool run_loopback = false;
+    std::string dma_device = "/dev/axi_dma_regs";
+    std::string udmabuf = "udmabuf0";
+    size_t loopback_bytes = 256 * 1024;
+    unsigned dma_timeout_ms = 100;
     std::vector<uint32_t> mmio_offsets_default{0x0, 0x4, 0x8, 0xC};
 };
 
@@ -119,8 +130,14 @@ void print_usage(const char* prog) {
               << "  --fpga-pr-gpio=N             PR decouple GPIO to toggle during load\n"
               << "  --fpga-pr-gpio-active-low    treat PR GPIO as active-low\n"
               << "  --fpga-pr-gpio-delay-ms=N    delay between GPIO toggles (default 5)\n"
+              << "  --overlay=label[:bitstream]  also request a partial overlay load\n"
               << "  --mmio-probe=name:base[:span]    dump registers from /dev/mem after load\n"
               << "  --mmio-probe-offset=name:offset  add register offset to that probe\n"
+              << "  --run-loopback               kick a DMA udmabuf loopback after load\n"
+              << "  --udmabuf=name               override udmabuf device (default udmabuf0)\n"
+              << "  --dma-device=/dev/axi_dma_regs  char device for AXI DMA registers\n"
+              << "  --bytes=N                    bytes to copy during loopback (default 256KiB)\n"
+              << "  --dma-timeout-ms=N           timeout per DMA channel (default 100ms)\n"
               << "  --repeat=N                   number of times to reload the static shell\n"
               << "  --help                       show this message\n";
 }
@@ -143,6 +160,29 @@ std::optional<int> parse_int(const std::string& text) {
     } catch (...) {
         return std::nullopt;
     }
+}
+
+bool parse_size(const std::string& text, size_t* out) {
+    if (text.empty()) return false;
+    try {
+        *out = static_cast<size_t>(std::stoull(text, nullptr, 0));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool read_uint64_file(const std::string& path, uint64_t* out) {
+    std::ifstream ifs(path);
+    if (!ifs) return false;
+    std::string text;
+    ifs >> text;
+    try {
+        *out = std::stoull(text, nullptr, 0);
+    } catch (...) {
+        return false;
+    }
+    return true;
 }
 
 std::optional<std::filesystem::path> resolve_bitstream_host_path(const std::string& request) {
@@ -242,6 +282,188 @@ bool run_mmio_probes(const std::vector<MmioProbe>& probes) {
     return ok;
 }
 
+class UdmabufRegion {
+public:
+    bool init(const std::string& name) {
+        std::string base = "/sys/class/u-dma-buf/" + name;
+        if (!read_uint64_file(base + "/size", &size_)) {
+            std::cerr << "[static-probe] failed to read udmabuf size for " << name << "\n";
+            return false;
+        }
+        if (!read_uint64_file(base + "/phys_addr", &phys_)) {
+            std::cerr << "[static-probe] failed to read udmabuf phys addr for " << name << "\n";
+            return false;
+        }
+        std::string dev_path = "/dev/" + name;
+        fd_ = ::open(dev_path.c_str(), O_RDWR | O_SYNC);
+        if (fd_ < 0) {
+            std::perror(("[static-probe] open " + dev_path).c_str());
+            return false;
+        }
+        void* map = mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
+        if (map == MAP_FAILED) {
+            std::perror("[static-probe] udmabuf mmap");
+            close(fd_);
+            fd_ = -1;
+            return false;
+        }
+        virt_ = static_cast<uint8_t*>(map);
+        return true;
+    }
+
+    ~UdmabufRegion() {
+        if (virt_) munmap(virt_, size_);
+        if (fd_ >= 0) close(fd_);
+    }
+
+    uint8_t* virt() const { return virt_; }
+    size_t size() const { return static_cast<size_t>(size_); }
+    uint64_t phys() const { return phys_; }
+
+private:
+    int fd_{-1};
+    uint8_t* virt_{nullptr};
+    uint64_t size_{0};
+    uint64_t phys_{0};
+};
+
+class DmaDevice {
+public:
+    explicit DmaDevice(std::string path) : path_(std::move(path)) {}
+    bool open_rw() {
+        fd_ = ::open(path_.c_str(), O_RDWR);
+        if (fd_ < 0) {
+            std::perror(("[static-probe] open " + path_).c_str());
+            return false;
+        }
+        return true;
+    }
+    ~DmaDevice() {
+        if (fd_ >= 0) close(fd_);
+    }
+
+    void write(off_t offset, uint32_t value) const {
+        if (pwrite(fd_, &value, sizeof(value), offset) != sizeof(value)) {
+            std::perror("[static-probe] dma pwrite");
+        }
+    }
+    uint32_t read(off_t offset) const {
+        uint32_t value = 0;
+        if (pread(fd_, &value, sizeof(value), offset) != sizeof(value)) {
+            std::perror("[static-probe] dma pread");
+        }
+        return value;
+    }
+
+private:
+    std::string path_;
+    int fd_{-1};
+};
+
+constexpr off_t MM2S_DMACR = 0x00;
+constexpr off_t MM2S_DMASR = 0x04;
+constexpr off_t MM2S_SA = 0x18;
+constexpr off_t MM2S_SA_MSB = 0x1C;
+constexpr off_t MM2S_LENGTH = 0x28;
+constexpr off_t S2MM_DMACR = 0x30;
+constexpr off_t S2MM_DMASR = 0x34;
+constexpr off_t S2MM_DA = 0x48;
+constexpr off_t S2MM_DA_MSB = 0x4C;
+constexpr off_t S2MM_LENGTH = 0x58;
+constexpr uint32_t DMA_CR_RUNSTOP = 0x1;
+constexpr uint32_t DMA_CR_IOC_IrqEn = 0x10;
+constexpr uint32_t DMA_CR_ERR_IrqEn = 0x40;
+constexpr uint32_t DMA_SR_IDLE = 0x2;
+constexpr uint32_t DMA_SR_ERR_MASK = (1u << 4) | (1u << 5) | (1u << 6) | (1u << 7) |
+                                     (1u << 12) | (1u << 13) | (1u << 14);
+
+bool wait_for_idle(const DmaDevice& dev, off_t status_reg, unsigned timeout_ms, const char* tag) {
+    const unsigned polls = timeout_ms * 4;
+    for (unsigned i = 0; i < polls; ++i) {
+        auto status = dev.read(status_reg);
+        if (status & DMA_SR_ERR_MASK) {
+            std::cerr << "[static-probe] " << tag << " error status=0x"
+                      << std::hex << status << std::dec << "\n";
+            return false;
+        }
+        if (status & DMA_SR_IDLE) return true;
+        std::this_thread::sleep_for(std::chrono::microseconds(250));
+    }
+    std::cerr << "[static-probe] " << tag << " timeout status=0x"
+              << std::hex << dev.read(status_reg) << std::dec << "\n";
+    return false;
+}
+
+bool run_dma_loopback(const Options& opts) {
+    UdmabufRegion buf;
+    if (!buf.init(opts.udmabuf)) return false;
+    size_t half = buf.size() / 2;
+    if (half == 0) {
+        std::cerr << "[static-probe] udmabuf too small\n";
+        return false;
+    }
+    size_t bytes = opts.loopback_bytes ? opts.loopback_bytes : half;
+    if (bytes > half) {
+        std::cerr << "[static-probe] requested bytes exceed half the buffer (" << half << ")\n";
+        return false;
+    }
+
+    uint8_t* in = buf.virt();
+    uint8_t* out = buf.virt() + half;
+    for (size_t i = 0; i < bytes; ++i) in[i] = static_cast<uint8_t>(i & 0xFF);
+    std::memset(out, 0, bytes);
+
+    DmaDevice dev(opts.dma_device);
+    if (!dev.open_rw()) return false;
+
+    auto clear_status = [&](bool s2mm) {
+        dev.write(s2mm ? S2MM_DMASR : MM2S_DMASR, 0xFFFFFFFF);
+    };
+    clear_status(true);
+    clear_status(false);
+
+    dev.write(S2MM_DMACR, DMA_CR_RUNSTOP | DMA_CR_IOC_IrqEn | DMA_CR_ERR_IrqEn);
+    dev.write(S2MM_DA, static_cast<uint32_t>(buf.phys() + half));
+    dev.write(S2MM_DA_MSB, static_cast<uint32_t>((buf.phys() + half) >> 32));
+    dev.write(S2MM_LENGTH, static_cast<uint32_t>(bytes));
+
+    dev.write(MM2S_DMACR, DMA_CR_RUNSTOP | DMA_CR_IOC_IrqEn | DMA_CR_ERR_IrqEn);
+    dev.write(MM2S_SA, static_cast<uint32_t>(buf.phys()));
+    dev.write(MM2S_SA_MSB, static_cast<uint32_t>(buf.phys() >> 32));
+    dev.write(MM2S_LENGTH, static_cast<uint32_t>(bytes));
+
+    bool mm2s_ok = wait_for_idle(dev, MM2S_DMASR, opts.dma_timeout_ms, "mm2s");
+    bool s2mm_ok = wait_for_idle(dev, S2MM_DMASR, opts.dma_timeout_ms, "s2mm");
+    uint32_t mm2s_sr = dev.read(MM2S_DMASR);
+    uint32_t s2mm_sr = dev.read(S2MM_DMASR);
+    std::cout << "[static-probe] DMA mm2s_sr=0x" << std::hex << mm2s_sr
+              << " s2mm_sr=0x" << s2mm_sr << std::dec << "\n";
+
+    if (!mm2s_ok || !s2mm_ok) {
+        std::cerr << "[static-probe] DMA transfer did not complete\n";
+        return false;
+    }
+
+    size_t mismatches = 0;
+    for (size_t i = 0; i < bytes; ++i) {
+        if (in[i] != out[i]) {
+            if (mismatches < 8) {
+                std::cerr << "[static-probe] mismatch @" << i
+                          << " in=0x" << std::hex << static_cast<int>(in[i])
+                          << " out=0x" << static_cast<int>(out[i]) << std::dec << "\n";
+            }
+            ++mismatches;
+        }
+    }
+    if (mismatches > 0) {
+        std::cerr << "[static-probe] loopback detected " << mismatches << " mismatches\n";
+        return false;
+    }
+    std::cout << "[static-probe] DMA loopback SUCCESS (" << bytes << " bytes)\n";
+    return true;
+}
+
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -304,6 +526,49 @@ int main(int argc, char** argv) {
             opts.repetitions = *val;
             continue;
         }
+        if (arg.rfind("--overlay=", 0) == 0) {
+            auto parts = split_colon(arg.substr(sizeof("--overlay=") - 1));
+            if (parts.empty() || parts[0].empty()) {
+                std::cerr << "Invalid --overlay spec: " << arg << "\n";
+                return 1;
+            }
+            opts.load_overlay = true;
+            opts.overlay_label = parts[0];
+            if (parts.size() > 1 && !parts[1].empty()) {
+                opts.overlay_bitstream = parts[1];
+            }
+            continue;
+        }
+        if (arg == "--run-loopback") {
+            opts.run_loopback = true;
+            continue;
+        }
+        if (arg.rfind("--udmabuf=", 0) == 0) {
+            opts.udmabuf = arg.substr(sizeof("--udmabuf=") - 1);
+            continue;
+        }
+        if (arg.rfind("--dma-device=", 0) == 0) {
+            opts.dma_device = arg.substr(sizeof("--dma-device=") - 1);
+            continue;
+        }
+        if (arg.rfind("--bytes=", 0) == 0) {
+            size_t val = 0;
+            if (!parse_size(arg.substr(sizeof("--bytes=") - 1), &val)) {
+                std::cerr << "Invalid value for --bytes\n";
+                return 1;
+            }
+            opts.loopback_bytes = val;
+            continue;
+        }
+        if (arg.rfind("--dma-timeout-ms=", 0) == 0) {
+            auto val = parse_unsigned(arg.substr(sizeof("--dma-timeout-ms=") - 1));
+            if (!val) {
+                std::cerr << "Invalid value for --dma-timeout-ms\n";
+                return 1;
+            }
+            opts.dma_timeout_ms = *val;
+            continue;
+        }
         if (arg.rfind("--mmio-probe=", 0) == 0) {
             auto probe = parse_mmio_probe(arg.substr(sizeof("--mmio-probe=") - 1));
             if (!probe) {
@@ -362,6 +627,21 @@ int main(int argc, char** argv) {
         std::cout << "[static-probe] Using host-visible bitstream at " << host_path->string() << "\n";
     }
 
+    std::optional<std::filesystem::path> overlay_host;
+    if (opts.load_overlay) {
+        overlay_host = resolve_bitstream_host_path(opts.overlay_bitstream);
+        if (!overlay_host) {
+            std::cerr << "[static-probe] Overlay bitstream not found: " << opts.overlay_bitstream;
+            if (!std::filesystem::path(opts.overlay_bitstream).is_absolute()) {
+                std::cerr << " (also checked /lib/firmware/" << opts.overlay_bitstream << ")";
+            }
+            std::cerr << "\n";
+            return 1;
+        } else if (opts.fpga_debug) {
+            std::cout << "[static-probe] Using overlay bitstream at " << overlay_host->string() << "\n";
+        }
+    }
+
     schedrt::FpgaSlotOptions slot_opts;
     slot_opts.manager_path = opts.fpga_manager;
     slot_opts.mock_mode = !opts.fpga_real;
@@ -381,10 +661,28 @@ int main(int argc, char** argv) {
                       << (iter + 1) << "\n";
             return 1;
         }
+        if (opts.load_overlay) {
+            schedrt::AppDescriptor desc;
+            desc.app = opts.overlay_label;
+            desc.kernel_name = opts.overlay_label + "_kernel";
+            desc.bitstream_path = opts.overlay_bitstream;
+            desc.kind = schedrt::ResourceKind::FFT;
+            if (!slot.ensure_app_loaded(desc)) {
+                std::cerr << "[static-probe] Failed to load overlay "
+                          << desc.app << " on attempt " << (iter + 1) << "\n";
+                return 1;
+            }
+        }
     }
 
     if (!mmio_probes.empty()) {
         if (!run_mmio_probes(mmio_probes)) {
+            return 1;
+        }
+    }
+
+    if (opts.run_loopback) {
+        if (!run_dma_loopback(opts)) {
             return 1;
         }
     }

@@ -85,9 +85,9 @@ Chronological summary of the major edits, experiments, and diagnostics performed
 - **Impact**: Even when fpga_manager loads the bitstreams successfully and the PS toggles the decouple GPIO, the AXI DMA cannot complete transfers because the stream handshake is permanently stalled in hardware. Fixing these RTL issues is required before any software-side changes (scheduler, kernel module) will see a healthy DMA path.
 
 ## 15. Static shell probe utility (Jan 2025)
-- **Change**: Added `apps/fpga_static_probe.cpp` and CMake target `fpga_static_probe`. The tool instantiates a bare `FpgaSlotAccelerator`, calls `prepare_static()`, and optionally runs `/dev/mem` MMIO probes so you can sanity-check AXI register mirrors immediately after the static shell load.
-- **Reason**: When fpga_manager throws errors immediately after the static shell write, it's hard to tell whether the failure stems from the base image or the subsequent overlay loads. The probe provides a minimal repro for kernel/bitstream debugging (watch `dmesg` while it runs) and a quick way to verify that the AXI slot came up.
-- **Status**: Build with `cmake --build build --target fpga_static_probe` and run with `--fpga-real --static-bitstream=...`. Use `--repeat=N` if you need to hammer the load sequence multiple times in a row, and chain `--mmio-probe` / `--mmio-probe-offset` to dump specific registers.
+- **Change**: Added `apps/fpga_static_probe.cpp` and CMake target `fpga_static_probe`. The tool instantiates a bare `FpgaSlotAccelerator`, calls `prepare_static()`, optionally loads a passthrough overlay, runs `/dev/mem` MMIO probes, and can kick a minimal udmabuf DMA loopback to generate concrete data-path output.
+- **Reason**: When fpga_manager throws errors immediately after the static shell write, it's hard to tell whether the failure stems from the base image or the subsequent overlay loads. The probe provides a minimal repro for kernel/bitstream debugging (watch `dmesg` while it runs) and a quick way to verify that the AXI slot came up before handing control to the scheduler.
+- **Status**: Build with `cmake --build build --target fpga_static_probe` and run with `--fpga-real --static-bitstream=...`. Use `--overlay=...` to specify the passthrough partial, `--repeat=N` to hammer the load sequence, chain `--mmio-probe` / `--mmio-probe-offset` to dump registers, and add `--run-loopback` plus DMA flags to validate the data stream.
 
 ---
 

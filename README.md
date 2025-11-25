@@ -85,10 +85,15 @@ sudo ./build/fpga_static_probe \
   --fpga-real \
   --fpga-pr-gpio=569 \
   --fpga-debug \
+  --overlay=fft_passthrough:/lib/firmware/bitstreams/fft_passthrough_partial.bin \
   --mmio-probe=dma:0x40400000:0x1000 \
   --mmio-probe-offset=dma:0x0 \
   --mmio-probe-offset=dma:0x4 \
-  --mmio-probe-offset=dma:0x28
+  --mmio-probe-offset=dma:0x28 \
+  --run-loopback \
+  --udmabuf=udmabuf0 \
+  --dma-device=/dev/axi_dma_regs \
+  --bytes=65536
 ```
 
-Each attempt runs only `FpgaSlotAccelerator::prepare_static()` so the PS toggles the optional decouple GPIO, writes the static filename into `fpga_manager`, and stops. When you add one or more `--mmio-probe` entries the tool also mmaps `/dev/mem` and dumps the requested offsets, letting you quickly sanity-check that the static shell exposed the expected AXI register window. Watch `dmesg` in another terminal for the corresponding kernel success/error before moving on to partial bitstreams.
+Each attempt runs `FpgaSlotAccelerator::prepare_static()` so the PS toggles the optional decouple GPIO, writes the static filename into `fpga_manager`, and (when `--overlay=` is provided) immediately loads the requested partial bitstream (default = fft_passthrough). Add one or more `--mmio-probe` entries to mmap `/dev/mem` and dump specific offsets, and enable `--run-loopback` to perform a small udmabuf loopback through the AXI DMA to prove the passthrough overlay is alive. Watch `dmesg` in another terminal for the corresponding kernel success/error before moving on to larger sched_runner experiments.
