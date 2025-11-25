@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     unsigned preload_threshold = 3;
     bool csv_report = false;
     std::string bitstream_dir = "bitstreams";
-    std::string static_bitstream = "bitstreams/static_wrapper.bit";
+    std::string static_bitstream = "bitstreams/static_wrapper.bin";
     std::string fpga_manager = "/sys/class/fpga_manager/fpga0/firmware";
     bool fpga_real = false;
     std::vector<OverlaySpec> overlays;
