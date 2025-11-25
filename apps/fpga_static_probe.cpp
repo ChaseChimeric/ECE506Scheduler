@@ -32,6 +32,7 @@ struct Options {
     bool pr_gpio_active_low = false;
     unsigned pr_gpio_delay_ms = 5;
     unsigned repetitions = 1;
+    bool trace_all = false;
     bool load_overlay = false;
     std::string overlay_label = "fft_passthrough";
     std::string overlay_bitstream = "bitstreams/fft_passthrough_partial.bin";
@@ -257,16 +258,16 @@ bool run_mmio_probe(const MmioProbe& probe) {
         }
         auto* regs = static_cast<volatile uint32_t*>(map);
         std::cout << "[static-probe] MMIO probe '" << probe.label << "' base=0x"
-                  << std::hex << probe.base << " span=0x" << probe.span << std::dec << "\n";
+                  << std::hex << probe.base << " span=0x" << probe.span << std::dec << std::endl;
         for (uint32_t offset : probe.offsets) {
             if (offset >= probe.span) {
                 std::cout << "    offset 0x" << std::hex << offset
-                          << " outside span 0x" << probe.span << std::dec << "\n";
+                          << " outside span 0x" << probe.span << std::dec << std::endl;
                 continue;
             }
             uint32_t value = regs[offset / sizeof(uint32_t)];
             std::cout << "    [0x" << std::hex << offset << "] = 0x"
-                      << value << std::dec << "\n";
+                      << value << std::dec << std::endl;
         }
         munmap(map, probe.span);
         close(fd);
@@ -437,7 +438,7 @@ bool run_dma_loopback(const Options& opts) {
     uint32_t mm2s_sr = dev.read(MM2S_DMASR);
     uint32_t s2mm_sr = dev.read(S2MM_DMASR);
     std::cout << "[static-probe] DMA mm2s_sr=0x" << std::hex << mm2s_sr
-              << " s2mm_sr=0x" << s2mm_sr << std::dec << "\n";
+              << " s2mm_sr=0x" << s2mm_sr << std::dec << std::endl;
 
     if (!mm2s_ok || !s2mm_ok) {
         std::cerr << "[static-probe] DMA transfer did not complete\n";
@@ -459,7 +460,7 @@ bool run_dma_loopback(const Options& opts) {
         std::cerr << "[static-probe] loopback detected " << mismatches << " mismatches\n";
         return false;
     }
-    std::cout << "[static-probe] DMA loopback SUCCESS (" << bytes << " bytes)\n";
+    std::cout << "[static-probe] DMA loopback SUCCESS (" << bytes << " bytes)" << std::endl;
     return true;
 }
 
@@ -484,6 +485,11 @@ int main(int argc, char** argv) {
             continue;
         }
         if (arg == "--fpga-debug") {
+            opts.fpga_debug = true;
+            continue;
+        }
+        if (arg == "--trace-all") {
+            opts.trace_all = true;
             opts.fpga_debug = true;
             continue;
         }
@@ -610,6 +616,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (opts.trace_all) {
+        std::cout.setf(std::ios::unitbuf);
+        setenv("SCHEDRT_TRACE", "1", 1);
+        setenv("SCHEDRT_DMA_DEBUG", "1", 1);
+        std::cout << "[static-probe] trace-all enabled (fpga + DMA verbose logging)" << std::endl;
+    }
+
     if (!opts.fpga_real) {
         std::cerr << "[static-probe] Refusing to load static shell without --fpga-real\n";
         return 1;
@@ -624,7 +637,7 @@ int main(int argc, char** argv) {
         std::cerr << "\n";
         return 1;
     } else if (opts.fpga_debug) {
-        std::cout << "[static-probe] Using host-visible bitstream at " << host_path->string() << "\n";
+        std::cout << "[static-probe] Using host-visible bitstream at " << host_path->string() << std::endl;
     }
 
     std::optional<std::filesystem::path> overlay_host;
@@ -638,7 +651,7 @@ int main(int argc, char** argv) {
             std::cerr << "\n";
             return 1;
         } else if (opts.fpga_debug) {
-            std::cout << "[static-probe] Using overlay bitstream at " << overlay_host->string() << "\n";
+            std::cout << "[static-probe] Using overlay bitstream at " << overlay_host->string() << std::endl;
         }
     }
 
@@ -654,7 +667,7 @@ int main(int argc, char** argv) {
     for (unsigned iter = 0; iter < opts.repetitions; ++iter) {
         std::cout << "[static-probe] Attempt " << (iter + 1) << " of "
                   << opts.repetitions << ": loading "
-                  << slot_opts.static_bitstream << "\n";
+                  << slot_opts.static_bitstream << std::endl;
         schedrt::FpgaSlotAccelerator slot(iter, slot_opts);
         if (!slot.prepare_static()) {
             std::cerr << "[static-probe] Static shell load failed on attempt "
@@ -687,7 +700,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::cout << "[static-probe] Static shell load requests completed successfully.\n"
-              << "Check 'dmesg' for the corresponding fpga_manager status.\n";
+    std::cout << "[static-probe] Static shell load requests completed successfully." << std::endl
+              << "Check 'dmesg' for the corresponding fpga_manager status." << std::endl;
     return 0;
 }

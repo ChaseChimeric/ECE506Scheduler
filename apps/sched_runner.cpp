@@ -7,6 +7,7 @@
 #include "schedrt/application_registry.hpp"
 
 #include <dlfcn.h>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -24,6 +25,7 @@ void print_usage(const char* prog) {
               << "[--preload-threshold=N] -- [app args...]\n";
     std::cout << "  --csv-report          emit task lines as CSV (id,ok,msg,time_ns)\n";
     std::cout << "  --fpga-debug          enable verbose logging inside the FPGA accelerators\n";
+    std::cout << "  --trace-all           enable every available debug/trace log (fpga + DMA)\n";
     std::cout << "  --fpga-pr-gpio=N      GPIO number that gates the PR region (asserted during reconfig)\n";
     std::cout << "  --fpga-pr-gpio-active-low  Treat the PR GPIO as active-low (default active-high)\n";
     std::cout << "  --fpga-pr-gpio-delay-ms=N  Delay after toggling the PR GPIO (default 5ms)\n";
@@ -74,6 +76,7 @@ int main(int argc, char** argv) {
     int fpga_pr_gpio = -1;
     bool fpga_pr_gpio_active_low = false;
     unsigned fpga_pr_gpio_delay_ms = 5;
+    bool trace_all = false;
     std::vector<OverlaySpec> overlays;
 
     int app_arg_start = argc;
@@ -127,6 +130,11 @@ int main(int argc, char** argv) {
             fpga_debug = true;
             continue;
         }
+        if (arg == "--trace-all") {
+            trace_all = true;
+            fpga_debug = true;
+            continue;
+        }
         if (arg.rfind("--fpga-pr-gpio=", 0) == 0) {
             fpga_pr_gpio = static_cast<int>(parse_unsigned(arg.substr(sizeof("--fpga-pr-gpio=") - 1), 0));
             continue;
@@ -165,6 +173,13 @@ int main(int argc, char** argv) {
         std::cerr << "Unknown option: " << arg << "\n";
         print_usage(argv[0]);
         return 1;
+    }
+
+    if (trace_all) {
+        std::cout.setf(std::ios::unitbuf);
+        setenv("SCHEDRT_TRACE", "1", 1);
+        setenv("SCHEDRT_DMA_DEBUG", "1", 1);
+        std::cout << "[sched_runner] trace-all enabled (fpga + DMA verbose logging)\n";
     }
 
     if (app_lib.empty()) {

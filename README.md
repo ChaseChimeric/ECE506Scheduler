@@ -16,6 +16,7 @@
 - `--fpga-manager=PATH` sysfs path to write partial bitstreams (defaults to /sys/class/fpga_manager/fpga0/firmware).
 - `--fpga-real/--fpga-mock` whether FpgaSlotAccelerator actually writes to the manager or stays mock.
 - `--fpga-pr-gpio=N` assert GPIO `N` during static/partial bitstream loads (decouples the PR region). Add `--fpga-pr-gpio-active-low` if the GPIO is active-low, and use `--fpga-pr-gpio-delay-ms=NUM` to control how long we wait after each toggle (default 5 ms).
+- `--trace-all` turn on every available verbose channel (equivalent to `--fpga-debug` + `SCHEDRT_TRACE=1` + `SCHEDRT_DMA_DEBUG=1`, and switches stdout into unit-buffered mode so each line flushes immediately). Use this when you need to know the precise step before a crash.
 - everything after -- is passed verbatim to the plugin as its own arguments (e.g., --input=...).
 
 ## DASH plugin flags (libdemo_dash_app.so)
@@ -85,6 +86,7 @@ sudo ./build/fpga_static_probe \
   --fpga-real \
   --fpga-pr-gpio=569 \
   --fpga-debug \
+  --trace-all \
   --overlay=fft_passthrough:/lib/firmware/bitstreams/fft_passthrough_partial.bin \
   --mmio-probe=dma:0x40400000:0x1000 \
   --mmio-probe-offset=dma:0x0 \
@@ -96,4 +98,4 @@ sudo ./build/fpga_static_probe \
   --bytes=65536
 ```
 
-Each attempt runs `FpgaSlotAccelerator::prepare_static()` so the PS toggles the optional decouple GPIO, writes the static filename into `fpga_manager`, and (when `--overlay=` is provided) immediately loads the requested partial bitstream (default = fft_passthrough). Add one or more `--mmio-probe` entries to mmap `/dev/mem` and dump specific offsets, and enable `--run-loopback` to perform a small udmabuf loopback through the AXI DMA to prove the passthrough overlay is alive. Watch `dmesg` in another terminal for the corresponding kernel success/error before moving on to larger sched_runner experiments.
+Each attempt runs `FpgaSlotAccelerator::prepare_static()` so the PS toggles the optional decouple GPIO, writes the static filename into `fpga_manager`, and (when `--overlay=` is provided) immediately loads the requested partial bitstream (default = fft_passthrough). Add one or more `--mmio-probe` entries to mmap `/dev/mem` and dump specific offsets, enable `--run-loopback` to perform a small udmabuf loopback through the AXI DMA, and pass `--trace-all` whenever you want stdout flushed after every line plus `SCHEDRT_TRACE`/`SCHEDRT_DMA_DEBUG` enabled automatically. Watch `dmesg` in another terminal for the corresponding kernel success/error before moving on to larger sched_runner experiments.

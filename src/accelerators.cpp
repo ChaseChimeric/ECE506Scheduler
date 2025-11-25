@@ -501,6 +501,17 @@ private:
     static constexpr off_t S2MM_LENGTH = 0x58;
 };
 
+bool fft_trace_enabled() {
+    static const bool enabled = std::getenv("SCHEDRT_TRACE") != nullptr;
+    return enabled;
+}
+
+void fft_trace_log(const std::string& msg) {
+    if (fft_trace_enabled()) {
+        std::cout << "[fft-hw] [trace] " << msg << std::endl;
+    }
+}
+
 class FftHwRunner {
 public:
     FftHwRunner() = default;
@@ -556,6 +567,8 @@ public:
         }
         if (sample_count == 0) return false;
         size_t bytes = sample_count * sizeof(int16_t) * 2;
+        fft_trace_log(std::string("execute start samples=") + std::to_string(sample_count)
+                      + " bytes=" + std::to_string(bytes));
         size_t half_buf = buffer_.size() / 2;
         if (bytes > half_buf) {
             std::cerr << "[fft-hw] requested transfer exceeds buffer size\n";
@@ -578,18 +591,29 @@ public:
             if (value < -1.0f) value = -1.0f;
             hw_in[i] = static_cast<int16_t>(std::lrint(value * 32767.0f));
         }
+        {
+            std::ostringstream oss;
+            oss << "input quantized, launching DMA src=0x"
+                << std::hex << (buffer_.phys() + input_offset_)
+                << " dst=0x" << (buffer_.phys() + output_offset_)
+                << " bytes=0x" << bytes;
+            fft_trace_log(oss.str());
+        }
 
         if (!dma_->transfer(buffer_.phys() + input_offset_, buffer_.phys() + output_offset_, bytes)) {
+            fft_trace_log("DMA transfer failed for current task");
             ctx.ok = false;
             ctx.message = "fft: hw DMA failure";
             return false;
         }
+        fft_trace_log("DMA transfer complete, converting results back to floats");
 
         for (size_t i = 0; i < sample_count * 2; ++i) {
             output[i] = static_cast<float>(hw_out[i]) / 32768.0f;
         }
         ctx.ok = true;
         ctx.message = "fft: hw n=" + std::to_string(sample_count);
+        fft_trace_log(std::string("execute finished samples=") + std::to_string(sample_count));
         return true;
     }
 
@@ -848,12 +872,12 @@ bool FpgaSlotAccelerator::set_decouple_gpio(bool asserted) {
 }
 
 void FpgaSlotAccelerator::log(const std::string& msg) const {
-    std::cout << "[" << name() << "] " << msg << "\n";
+    std::cout << "[" << name() << "] " << msg << std::endl;
 }
 
 void FpgaSlotAccelerator::log_debug(const std::string& msg) const {
     if (!opts_.debug_logging) return;
-    std::cout << "[" << name() << "] [debug] " << msg << "\n";
+    std::cout << "[" << name() << "] [debug] " << msg << std::endl;
 }
 
 std::unique_ptr<Accelerator> make_cpu_mock(unsigned id) {
