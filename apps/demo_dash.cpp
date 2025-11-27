@@ -29,7 +29,7 @@ struct DashOptions {
     unsigned preload_threshold = 3;
     std::string fpga_manager_path = "/sys/class/fpga_manager/fpga0/firmware";
     std::string bitstream_dir = "bitstreams";
-    std::string static_bitstream = "bitstreams/static_wrapper.bit";
+    std::string static_bitstream = "bitstreams/top_reconfig_wrapper.bit";
     bool fpga_mock = true;
 };
 
@@ -95,9 +95,8 @@ DashOptions parse_options(int argc, char** argv) {
         }
     }
     if (opts.overlays.empty()) {
-        opts.overlays.push_back({"zip", 2});
-        opts.overlays.push_back({"fft", 1});
-        opts.overlays.push_back({"fir", 1});
+        opts.overlays.push_back({"fft", 1, "fft_partial.bit"});
+        opts.overlays.push_back({"fir", 1, "axis_passthrough_partial.bit"});
     }
     return opts;
 }
