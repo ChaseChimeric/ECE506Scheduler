@@ -320,6 +320,9 @@ bool run_fft_dma_test(const Options& opts) {
         return false;
     }
 
+    std::cout << "[dma] Preparing transfer of " << opts.samples << " samples ("
+              << bytes << " bytes)\n";
+
     auto* tx = reinterpret_cast<uint32_t*>(mm2s.virt);
     auto* rx = reinterpret_cast<uint32_t*>(s2mm.virt);
     for (size_t i = 0; i < opts.samples; ++i) tx[i] = static_cast<uint32_t>(i);
