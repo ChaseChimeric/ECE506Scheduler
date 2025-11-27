@@ -5,6 +5,7 @@ These artifacts are copied directly from the Vivado project under `../fft_fir_re
 - `top_reconfig_wrapper.bit` + `top_reconfig.hwh` Full bitstream + handoff for the static design (`fft_fir_reconfigurable.runs/impl_1/top_reconfig_wrapper.bit`, `fft_fir_reconfigurable.gen/.../top_reconfig.hwh`). The `FpgaSlotAccelerator` uses this for the initial shell when `--static-bitstream` is left at its default.
 - `fft_partial.bit` + `fft_partial.hwh` Partial bitstream for the FFT RM (`top_reconfig_i_reconfiguable_region_reconfiguable_region_1_inst_0_partial.bit`). The HWH (`.../reconfiguable_region_1_inst_0.hwh`) shows the RP exposing the `xfft_0` ports.
 - `axis_passthrough_partial.bit` + `axis_passthrough_partial.hwh` Partial for the current child RM that wires the RP ports straight through (`top_reconfig_i_reconfiguable_region_reconfiguable_region_inst_0_partial.bit`). It serves as the FIR placeholder until an actual FIR RM exists.
+- Each `.bit` has a matching `.bin` (raw binary) generated for Linux `fpga_manager`; when invoking `fpga_loader`, point at the `.bin` filenames.
 
 ### FIR status
 
@@ -29,9 +30,9 @@ You can also validate the hardware path without the full scheduler by running th
 
 ```sh
 sudo ./build/fpga_loader \
-  --static=bitstreams/top_reconfig_wrapper.bit \
-  --partial=bitstreams/fft_partial.bit \
+  --static=bitstreams/top_reconfig_wrapper.bin \
+  --partial=bitstreams/fft_partial.bin \
   --manager=/sys/class/fpga_manager/fpga0/firmware
 ```
 
-The loader stages the bitstreams into `/lib/firmware`, asserts the DFX decouple signal (AXI GPIO @ 0x4120_0000) during reconfiguration, sets the `fpga_manager` partial flag, and then re-enables traffic once the partial image finishes loading.
+The loader stages the `.bin` images into `/lib/firmware`, asserts the DFX decouple signal (AXI GPIO @ 0x4120_0000) during reconfiguration, sets the `fpga_manager` partial flag, and then re-enables traffic once the partial image finishes loading.

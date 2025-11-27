@@ -40,9 +40,10 @@
 - Run on the Zynq board as root, e.g.:
   ```
   sudo ./build/fpga_loader \
-    --static=bitstreams/top_reconfig_wrapper.bit \
-    --partial=bitstreams/fft_partial.bit \
+    --static=bitstreams/top_reconfig_wrapper.bin \
+    --partial=bitstreams/fft_partial.bin \
     --manager=/sys/class/fpga_manager/fpga0/firmware
   ```
-- The tool copies the requested bitstreams into `/lib/firmware`, writes their filenames to the Linux `fpga_manager`, drives the `fpga0/flags` node high for partial reconfiguration, and automatically toggles the AXI-GPIO decouple signal at `0x41200000` around each partial load so the DFX decouplers isolate the reconfigurable partition.
+- The tool copies the requested `.bin` containers into `/lib/firmware`, writes their filenames to the Linux `fpga_manager`, drives the `fpga0/flags` node high for partial reconfiguration, and automatically toggles the AXI-GPIO decouple signal at `0x41200000` around each partial load so the DFX decouplers isolate the reconfigurable partition.
+- Linux `fpga_manager` requires the raw binary (`*.bin`) bitstreams generated via `bootgen`; the `bitstreams/` directory contains `.bin` siblings for the `.bit` files so the loader defaults to those paths.
 - Add `--dry-run` on a development host to see the sequence without touching `/dev/mem` or sysfs, or adjust `--gpio-base`, `--firmware-dir`, or `--wait-ms` if your platform differs.

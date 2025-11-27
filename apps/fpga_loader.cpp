@@ -20,7 +20,7 @@ namespace {
 struct Options {
     bool show_help = false;
     bool dry_run = false;
-    std::string static_bit = "bitstreams/top_reconfig_wrapper.bit";
+    std::string static_bit = "bitstreams/top_reconfig_wrapper.bin";
     std::string partial_bit;
     std::string manager_node = "/sys/class/fpga_manager/fpga0/firmware";
     std::string firmware_dir = "/lib/firmware";
