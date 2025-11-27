@@ -33,3 +33,16 @@
 - `fft_partial.bit` + `fft_partial.hwh` are the FFT RM partial reconfig image and handoff (Vivado imports `reconfiguable_region_1_inst_0.dcp` for this partition).
 - `axis_passthrough_partial.bit` + `axis_passthrough_partial.hwh` capture the current child RM that wires the RP ports to an AXI-Stream pass-through (placeholder for FIR). Use this until the FIR implementation produces a `*_reconfigurable_region_2_inst_0_partial.bit`.
 - Point `sched_runner` at `--bitstream-dir=bitstreams` so each overlay resolves `<name>_partial.bit` inside this repo, and keep the `.hwh` files nearby for XRT/PetaLinux metadata.
+
+## FPGA loader utility (`fpga_loader`)
+
+- Build with `cmake --build build --target fpga_loader` (the default configure step already created the target).
+- Run on the Zynq board as root, e.g.:
+  ```
+  sudo ./build/fpga_loader \
+    --static=bitstreams/top_reconfig_wrapper.bit \
+    --partial=bitstreams/fft_partial.bit \
+    --manager=/sys/class/fpga_manager/fpga0/firmware
+  ```
+- The tool copies the requested bitstreams into `/lib/firmware`, writes their filenames to the Linux `fpga_manager`, drives the `fpga0/flags` node high for partial reconfiguration, and automatically toggles the AXI-GPIO decouple signal at `0x41200000` around each partial load so the DFX decouplers isolate the reconfigurable partition.
+- Add `--dry-run` on a development host to see the sequence without touching `/dev/mem` or sysfs, or adjust `--gpio-base`, `--firmware-dir`, or `--wait-ms` if your platform differs.

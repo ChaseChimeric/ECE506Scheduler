@@ -24,3 +24,14 @@ Example invocation after building the repo:
 ```
 
 Drop `--fpga-mock` and add `--fpga-real --fpga-manager=/sys/class/fpga_manager/fpga0/firmware` when deploying on the board, or override `--static-bitstream`/`--bitstream-dir` if you relocate these files.
+
+You can also validate the hardware path without the full scheduler by running the standalone loader:
+
+```sh
+sudo ./build/fpga_loader \
+  --static=bitstreams/top_reconfig_wrapper.bit \
+  --partial=bitstreams/fft_partial.bit \
+  --manager=/sys/class/fpga_manager/fpga0/firmware
+```
+
+The loader stages the bitstreams into `/lib/firmware`, asserts the DFX decouple signal (AXI GPIO @ 0x4120_0000) during reconfiguration, sets the `fpga_manager` partial flag, and then re-enables traffic once the partial image finishes loading.
