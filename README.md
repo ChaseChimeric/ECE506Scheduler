@@ -46,4 +46,19 @@
   ```
 - The tool copies the requested `.bin` containers into `/lib/firmware`, writes their filenames to the Linux `fpga_manager`, drives the `fpga0/flags` node high for partial reconfiguration, and automatically toggles the AXI-GPIO decouple signal at `0x41200000` around each partial load so the DFX decouplers isolate the reconfigurable partition.
 - Linux `fpga_manager` requires the raw binary (`*.bin`) bitstreams generated via `bootgen`; the `bitstreams/` directory contains `.bin` siblings for the `.bit` files so the loader defaults to those paths.
+
+## FFT DMA probe (`fpga_fft_dma_loader`)
+
+- Build with `cmake --build build --target fpga_fft_dma_loader`.
+- This executable performs the same static/partial loading sequence as `fpga_loader`, then programs the AXI DMA at `0x40400000` to push data through the FFT RP using the `u-dma-buf` devices you created (defaults: `/dev/udmabuf0` for MM2S input, `/dev/udmabuf1` for S2MM output).
+- Example usage (adjust DMA buffers if yours differ):
+  ```
+  sudo ./build/fpga_fft_dma_loader \
+    --static=bitstreams/top_reconfig_wrapper.bin \
+    --partial=bitstreams/fft_partial.bin \
+    --mm2s-buf=/dev/udmabuf0 \
+    --s2mm-buf=/dev/udmabuf1 \
+    --manager=/sys/class/fpga_manager/fpga0/firmware
+  ```
+- After the partial image is loaded and decouple released, the tool resets the DMA, streams `--samples` 32-bit words into the FFT overlay, waits for MM2S/S2MM completion, and dumps the first few output samples so you can confirm the fabric datapath is alive.
 - Add `--dry-run` on a development host to see the sequence without touching `/dev/mem` or sysfs, or adjust `--gpio-base`, `--firmware-dir`, or `--wait-ms` if your platform differs.

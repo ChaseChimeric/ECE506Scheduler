@@ -36,3 +36,16 @@ sudo ./build/fpga_loader \
 ```
 
 The loader stages the `.bin` images into `/lib/firmware`, asserts the DFX decouple signal (AXI GPIO @ 0x4120_0000) during reconfiguration, sets the `fpga_manager` partial flag, and then re-enables traffic once the partial image finishes loading.
+
+For a quick datapath check that also hits the AXI DMA + FFT RP, use `fpga_fft_dma_loader`:
+
+```sh
+sudo ./build/fpga_fft_dma_loader \
+  --static=bitstreams/top_reconfig_wrapper.bin \
+  --partial=bitstreams/fft_partial.bin \
+  --mm2s-buf=/dev/udmabuf0 \
+  --s2mm-buf=/dev/udmabuf1 \
+  --manager=/sys/class/fpga_manager/fpga0/firmware
+```
+
+It will stream a ramp from `/dev/udmabuf0` through the FFT RM via the AXI DMA mapped at `0x40400000`, capture the results in `/dev/udmabuf1`, and print the first few words so you can confirm the PR region responds.
