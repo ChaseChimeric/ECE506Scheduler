@@ -349,6 +349,11 @@ bool run_fft_dma_test(const Options& opts) {
     bool ok_tx = wait_for_bit(dma, MM2S_DMASR, 1u << 12, opts.timeout, "MM2S");
     bool ok_rx = wait_for_bit(dma, S2MM_DMASR, 1u << 12, opts.timeout, "S2MM");
 
+    auto tx_status = dma.read32(MM2S_DMASR);
+    auto rx_status = dma.read32(S2MM_DMASR);
+    std::cout << "[dma] Final status MM2S=0x" << std::hex << tx_status
+              << " S2MM=0x" << rx_status << std::dec << "\n";
+
     if (ok_tx && ok_rx) {
         std::cout << "[dma] Transfer complete. Output samples:";
         size_t to_print = std::min<size_t>(8, opts.samples);
